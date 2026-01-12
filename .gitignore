@@ -1,0 +1,14 @@
+# Pastas de dados do MongoDB (caso sejam criadas localmente)
+MongoCluster/data/
+config_data/
+shard1_data/
+shard2_data/
+shard3_data/
+mongo_data/
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Logs do Docker
+*.log
