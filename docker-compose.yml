@@ -49,6 +49,20 @@ services:
       - "27017:27017"
     command: mongos --configdb configReplSet/configsvr:27018 --port 27017 --bind_ip_all
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  worker:
+    build: ./Worker
+    container_name: worker
+    depends_on:
+      - mongos
+      - rabbitmq
+
 volumes:
   config_data:
   shard1_data:
