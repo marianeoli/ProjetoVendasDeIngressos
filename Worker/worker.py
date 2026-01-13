@@ -31,15 +31,15 @@ async def processar_pedido(msg):
 async def main():
     while True:
         try:
-	    connection = await connect_robust(RABBIT_URL)
-	    channel = await connection.channel()
+            connection = await connect_robust(RABBIT_URL)
+            channel = await connection.channel()
 
-	    queue = await channel.declare_queue("fila_pedidos", durable=True)
+            queue = await channel.declare_queue("fila_pedidos", durable=True)
 
-	    async with queue.iterator() as queue_iter:
-	        async for message in queue_iter:
-	            async with message.process():
-	                await processar_pedido(message)
+            async with queue.iterator() as queue_iter:
+                async for message in queue_iter:
+                    async with message.process():
+                        await processar_pedido(message)
 
             break
 
