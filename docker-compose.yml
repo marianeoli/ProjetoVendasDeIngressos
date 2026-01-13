@@ -56,6 +56,18 @@ services:
       - "5672:5672"
       - "15672:15672"
 
+  app_api:
+    build: .                      
+    container_name: api_vendas
+    ports:
+      - "8000:8000"               
+    depends_on:
+      - rabbitmq                 
+    environment:
+      - RABBITMQ_HOST=rabbitmq    
+    volumes:
+      - .:/app 
+
   worker:
     build: ./Worker
     container_name: worker

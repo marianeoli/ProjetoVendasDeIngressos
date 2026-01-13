@@ -1,8 +1,10 @@
 import aio_pika
+import os
 from shared.schemas import TicketPurchaseMessage
 
 # Configurações de conexão (Padrão do Docker: guest/guest)
-RABBITMQ_URL = "amqp://guest:guest@localhost:5672/"
+rabbit_host = os.getenv("RABBITMQ_HOST", "localhost")
+RABBITMQ_URL = f"amqp://guest:guest@{rabbit_host}:5672/"
 QUEUE_NAME = "fila_pedidos"
 
 async def publish_message(message: TicketPurchaseMessage):
