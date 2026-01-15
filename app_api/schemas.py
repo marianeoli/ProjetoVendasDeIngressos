@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime, date
 
@@ -19,7 +19,7 @@ class EventoResponse(EventoCreate):
 # MODELO DE USUÁRIO
 class UsuarioCreate(BaseModel):
     nome: str
-    email: str
+    email: EmailStr
     senha: str 
 
 class UsuarioLogin(BaseModel):
@@ -29,15 +29,14 @@ class UsuarioLogin(BaseModel):
 class UsuarioResponse(BaseModel):
     id: str
     nome: str
-    email: str
+    email: EmailStr
 
 # MODELO DE COMPRA (Atualizado) 
 class PedidoCreate(BaseModel):
     evento_id: str  # Agora exigimos o ID real do evento
     usuario_id: str
     data_nascimento: date
-    data_compra: datetime
+    data_hora: datetime
     quantidade: int
-    valor_total: float
-    cartao_credito: str # Simulação
+    valor: float
     status: str
