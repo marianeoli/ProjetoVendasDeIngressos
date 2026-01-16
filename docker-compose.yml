@@ -64,16 +64,23 @@ services:
     depends_on:
       - rabbitmq                 
     environment:
-      - RABBITMQ_HOST=rabbitmq    
+      - RABBITMQ_HOST=rabbitmq  
+      - MONGO_URL=mongodb://mongos:27017  
     volumes:
       - .:/app 
 
   worker:
     build: ./Worker
     container_name: worker
+    command: python ./Worker/worker.py
     depends_on:
       - mongos
       - rabbitmq
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - MONGO_URL=mongodb://mongos:27017
+    volumes:
+      - .:/app
 
 volumes:
   config_data:

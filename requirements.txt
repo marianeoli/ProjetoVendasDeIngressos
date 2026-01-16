@@ -3,3 +3,4 @@ uvicorn
 pydantic
 aio-pika
 motor
+email-validator
