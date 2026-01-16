@@ -36,7 +36,7 @@ class PedidoCreate(BaseModel):
     evento_id: str  # Agora exigimos o ID real do evento
     usuario_id: str
     data_nascimento: date
-    data_compra: datetime
+    data_hora: datetime
     quantidade: int
     valor_total: float
     status: str
