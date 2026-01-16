@@ -20,9 +20,14 @@ docker exec -it mongos mongosh --port 27017 --eval '
   sh.addShard("shard2ReplSet/shard2:27020");
   sh.addShard("shard3ReplSet/shard3:27021");
 
-  var db = db.getSiblingDB("ingressos");
-  sh.enableSharding("ingressos");
-  sh.shardCollection("ingressos.pedidos", { "_id": "hashed" });
+  var db = db.getSiblingDB("bilheteria");
+  sh.enableSharding("bilheteria");
+  db.usuarios.createIndex({ "_id": "hashed" })
+  sh.shardCollection("bilheteria.usuarios", { "_id": "hashed" });
+  db.vendas.createIndex({ "usuario_id": "hashed" })
+  sh.shardCollection("bilheteria.vendas", { "usuario_id": "hashed" })
+  db.eventos.createIndex({ "_id": "hashed" })
+  sh.shardCollection("bilheteria.eventos", { "_id": "hashed" })
 '
 
 echo "Tudo pronto!"

@@ -1,13 +1,12 @@
 import aio_pika
-import os
-from shared.schemas import TicketPurchaseMessage
+import json
 
 # Configurações de conexão (Padrão do Docker: guest/guest)
-rabbit_host = os.getenv("RABBITMQ_HOST", "localhost")
-RABBITMQ_URL = f"amqp://guest:guest@{rabbit_host}:5672/"
+#rabbit_host = os.getenv("RABBITMQ_HOST", "localhost")
+RABBITMQ_URL = f"amqp://guest:guest@rabbitmq:5672/"
 QUEUE_NAME = "fila_pedidos"
 
-async def publish_message(message: TicketPurchaseMessage):
+async def publicar_mensagem(mensagem: dict):
     """
     Conecta ao RabbitMQ e publica a mensagem de compra na fila.
     """
@@ -24,7 +23,7 @@ async def publish_message(message: TicketPurchaseMessage):
         
         # Preparação da mensagem
         # Transformamos o objeto Pydantic em JSON string e depois em bytes
-        message_body = message.model_dump_json().encode("utf-8")
+        message_body = json.dumps(mensagem).encode("utf-8")
         
         # Publicar
         await channel.default_exchange.publish(
@@ -35,4 +34,4 @@ async def publish_message(message: TicketPurchaseMessage):
             routing_key=QUEUE_NAME,
         )
         
-        print(f" [x] Enviado para fila: {message.pedido_id}")
+        print(f" [x] Enviado para fila: {mensagem}")

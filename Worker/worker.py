@@ -17,18 +17,35 @@ async def processar_vendas(message):
     payload = json.loads(message.body)
     
     try:
-        # Verifica se o usuário que está tentando comprar existe
-        usuario = await db.usuarios.find_one({"_id": payload["usuario_id"]})
+        # --- AJUSTE 1: Conversão de String para ObjectId ---
+        # Obrigatório para o MongoDB achar os documentos
+        try:
+            usuario_oid = ObjectId(payload["usuario_id"])
+            evento_oid = ObjectId(payload["evento_id"])
+        except Exception as e:
+            print(f"Erro: IDs inválidos recebidos. {e}")
+            return
+
+        # Verifica se o usuário existe (Usando o ID convertido)
+        usuario = await db.usuarios.find_one({"_id": usuario_oid})
         if not usuario:
             print(f"Erro: Usuário {payload['usuario_id']} não encontrado.")
             return
 
+        # --- AJUSTE 2: Calcular Valor Total ---
+        # Como a API não manda o preço, buscamos o evento para calcular
+        dados_evento = await db.eventos.find_one({"_id": evento_oid})
+        if not dados_evento:
+            print("Erro: Evento não encontrado para consultar preço.")
+            return
+            
+        preco_unitario = dados_evento.get("preco", 0)
+        valor_total_calculado = preco_unitario * payload["quantidade"]
+
         # Operação atômica na coleção eventos (Controle de estoque)
-        # O uso de find_one_and_update garante que o decremento seja seguro entre múltiplos workers
-        evento_id = ObjectId(payload["evento_id"])
         resultado_estoque = await db.eventos.find_one_and_update(
             {
-                "_id": evento_id, 
+                "_id": evento_oid, # Usando ID convertido
                 "quantidade_disponivel": {"$gte": payload["quantidade"]}
             },
             {"$inc": {"quantidade_disponivel": -payload["quantidade"]}},
@@ -37,21 +54,22 @@ async def processar_vendas(message):
 
         if resultado_estoque:
             # Persistência na coleção vendas (Coleção Sharded)
-            # O campo 'usuario_id' aqui é a Shard Key que vai distribuir o dado no cluster
+            # O campo 'usuario_id' é sua Shard Key. Passando como ObjectId, o Mongo distribui corretamente.
             nova_venda = {
-                "evento_id": evento_id,
-                "usuario_id": payload["usuario_id"], 
+                "pedido_id": payload.get("pedido_id"),
+                "evento_id": evento_oid,
+                "usuario_id": usuario_oid, 
                 "quantidade": payload["quantidade"],
-                "valor_total": payload["valor_total"],
+                "valor_total": valor_total_calculado,
                 "data_hora": datetime.now(timezone.utc).isoformat(),
                 "status": "CONFIRMADO",
-                "detalhes_usuario": { "nome": usuario["nome"], "email": usuario["email"] } # Denormalização
+                "detalhes_usuario": { "nome": usuario["nome"], "email": usuario["email"] }
             }
             
             await db.vendas.insert_one(nova_venda)
-            print(f"Venda {payload.get('vendas_id', 'S/N')} gravada com sucesso no Cluster!")
+            print(f"Venda confirmada! ID: {payload.get('pedido_id')}")
         else:
-            print(f"Falha: Stock esgotado para o evento {payload['evento_id']}")
+            print(f"Falha: Estoque esgotado para o evento {payload['evento_id']}")
 
     except Exception as e:
         print(f"Erro crítico no processamento: {e}")
@@ -62,20 +80,20 @@ async def main():
             connection = await connect_robust(RABBIT_URL)
             channel = await connection.channel()
             
-            # Garante que um worker não pegue mensagens demais se estiver lento
             await channel.set_qos(prefetch_count=1)
 
-            queue = await channel.declare_queue("fila_vendas", durable=True)
+            # --- AJUSTE 3: Nome da fila correto ---
+            queue = await channel.declare_queue("fila_pedidos", durable=True)
 
-            print("Worker aguardando pedidos dos 3 Shards...")
+            print("Worker aguardando na fila 'fila_pedidos'...")
 
             async with queue.iterator() as queue_iter:
                 async for message in queue_iter:
-                    async with message.process(): # Envia ACK automático ao terminar
+                    async with message.process(): 
                         await processar_vendas(message)
 
         except Exception as e:
-            print(f"Falha de conexão. {e}")
+            print(f"Falha de conexão: {e}. Tentando em 5s...")
             await asyncio.sleep(5)
 
 if __name__ == "__main__":

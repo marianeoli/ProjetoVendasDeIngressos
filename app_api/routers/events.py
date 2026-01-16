@@ -2,8 +2,8 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 from bson import ObjectId
 from app_api.schemas import EventoCreate, EventoResponse, PedidoCreate
-from app_api.database import eventos_collection # <--- Importando do arquivo novo
-# from app_api.producer import publicar_mensagem # <--- Descomente quando seu producer estiver pronto
+from app_api.database import eventos_collection 
+from app_api.producer import publicar_mensagem # <--- Import agora funciona!
 
 router = APIRouter()
 
@@ -38,16 +38,27 @@ async def comprar_ingresso(pedido: PedidoCreate):
     if not evento:
         raise HTTPException(status_code=404, detail="Evento não encontrado")
 
-    # 2. Monta mensagem
+    # --- MUDANÇA AQUI 👇 ---
+    
+    # Geramos um ID único para o pedido AGORA
+    novo_pedido_id = str(ObjectId()) 
+
+    # 2. Monta mensagem COM O ID
     mensagem = {
+        "pedido_id": novo_pedido_id,  # <--- O Worker exige esse campo!
         "evento_id": pedido.evento_id,
         "usuario_id": pedido.usuario_id,
         "quantidade": pedido.quantidade,
         "status": "PENDENTE"
     }
 
-    # 3. Envia para fila (Aqui você chama seu producer real)
-    # await publicar_mensagem(mensagem)
     print(f"DEBUG: Enviando para fila -> {mensagem}")
 
-    return {"status": "recebido", "mensagem": "Pedido em processamento"}
+    # 3. Envia para fila
+    await publicar_mensagem(mensagem)
+
+    return {
+        "status": "recebido", 
+        "mensagem": "Pedido em processamento", 
+        "pedido_id": novo_pedido_id # Devolvemos o ID pro usuário saber
+    }
