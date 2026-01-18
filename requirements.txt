@@ -4,3 +4,4 @@ pydantic
 aio-pika
 motor
 email-validator
+httpx

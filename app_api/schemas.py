@@ -24,8 +24,8 @@ class UsuarioCreate(BaseModel):
 
 class UsuarioResponse(BaseModel):
     id: str
-    nome: EmailStr 
-    email: str
+    nome: str 
+    email: EmailStr
 
 class UsuarioLogin(BaseModel):
     email: EmailStr
