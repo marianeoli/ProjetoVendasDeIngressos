@@ -1,10 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List
 from bson import ObjectId
-from app_api.schemas import EventoCreate, EventoResponse, PedidoCreate
-from app_api.database import eventos_collection 
-from app_api.producer import publicar_mensagem # <--- Import agora funciona!
+from app_api.schemas import EventoCreate, EventoResponse, PedidoCreate, TokenData
 from app_api.database import eventos_collection, vendas_collection
+from app_api.producer import publicar_mensagem # <--- Import agora funciona!
+from app_api.routers.auth import obter_usuario_atual, obter_admin_atual
 
 router = APIRouter()
 
@@ -28,7 +28,10 @@ async def criar_evento(evento: EventoCreate):
 # --- ROTA DE COMPRA ---
 
 @router.post("/comprar")
-async def comprar_ingresso(pedido: PedidoCreate):
+async def comprar_ingresso(
+    pedido: PedidoCreate, 
+    usuario: TokenData = Depends(obter_usuario_atual) # <--- Protege a rota e pega o ID do Token
+):
     # 1. Verifica se evento existe
     try:
         evento_oid = ObjectId(pedido.evento_id)
@@ -39,16 +42,16 @@ async def comprar_ingresso(pedido: PedidoCreate):
     if not evento:
         raise HTTPException(status_code=404, detail="Evento não encontrado")
 
-    # --- MUDANÇA AQUI 👇 ---
-    
-    # Geramos um ID único para o pedido AGORA
+    # Geramos um ID único para o pedido
     novo_pedido_id = str(ObjectId()) 
 
-    # 2. Monta mensagem COM O ID
+    # 2. Monta a mensagem para o Worker
+    # IMPORTANTE: Usamos usuario.usuario_id que vem do JWT, 
+    # ignorando o "ignorado" que vem do script de stress test.
     mensagem = {
-        "pedido_id": novo_pedido_id,  # <--- O Worker exige esse campo!
+        "pedido_id": novo_pedido_id,
         "evento_id": pedido.evento_id,
-        "usuario_id": pedido.usuario_id,
+        "usuario_id": usuario.usuario_id, # <--- Aqui está a correção mágica!
         "quantidade": pedido.quantidade,
         "status": "PENDENTE"
     }
@@ -61,7 +64,7 @@ async def comprar_ingresso(pedido: PedidoCreate):
     return {
         "status": "recebido", 
         "mensagem": "Pedido em processamento", 
-        "pedido_id": novo_pedido_id # Devolvemos o ID pro usuário saber
+        "pedido_id": novo_pedido_id 
     }
 
 @router.get("/vendas/{pedido_id}")
@@ -113,18 +116,12 @@ async def listar_vendas_usuario(usuario_id: str):
     return vendas
 
 @router.get("/dashboard/vendas")
-async def dashboard_vendas():
-    """
-    Retorna um resumo de todos os eventos, 
-    mostrando o estoque atual e o status das vendas.
-    """
+async def dashboard_vendas(usuario: TokenData = Depends(obter_admin_atual)):
     resumo = []
     
-    # Busca todos os eventos no banco sharded
     async for evento in eventos_collection.find():
-        # Para cada evento, vamos contar quantas vendas foram confirmadas
-        # Nota: Em clusters muito grandes, faríamos um lookup ou aggregation.
         total_vendido = 0
+        # Buscamos vendas confirmadas para este evento específico
         vendas_cursor = vendas_collection.find({"evento_id": evento["_id"]})
         
         async for venda in vendas_cursor:

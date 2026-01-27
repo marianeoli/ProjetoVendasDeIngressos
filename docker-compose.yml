@@ -1,6 +1,7 @@
 version: "3.8"
 
 services:
+  # --- INFRAESTRUTURA MONGODB (SHARDED CLUSTER) ---
   configsvr:
     image: mongo:7
     container_name: config
@@ -49,6 +50,7 @@ services:
       - "27017:27017"
     command: mongos --configdb configReplSet/configsvr:27018 --port 27017 --bind_ip_all
 
+  # --- MENSAGERIA ---
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
@@ -56,16 +58,19 @@ services:
       - "5672:5672"
       - "15672:15672"
 
+  # --- APLICAÇÕES ---
   app_api:
     build: .                      
     container_name: api_vendas
     ports:
       - "8000:8000"               
     depends_on:
-      - rabbitmq                 
+      - rabbitmq
+      - mongos                 
     environment:
       - RABBITMQ_HOST=rabbitmq  
-      - MONGO_URL=mongodb://mongos:27017  
+      - MONGO_URL=mongodb://mongos:27017
+      - SECRET_KEY=6dfbyg7HoXlu6McL1cqVBl1DYlVWfKhOQ7DlRR1WAI8
     volumes:
       - .:/app 
 
@@ -79,6 +84,7 @@ services:
     environment:
       - RABBITMQ_HOST=rabbitmq
       - MONGO_URL=mongodb://mongos:27017
+      - SECRET_KEY=6dfbyg7HoXlu6McL1cqVBl1DYlVWfKhOQ7DlRR1WAI8
     volumes:
       - .:/app
 

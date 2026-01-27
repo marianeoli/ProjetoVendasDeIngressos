@@ -1,42 +1,71 @@
 import asyncio
+import os
 import json
 from aio_pika import connect_robust
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
-import os
+from datetime import datetime, timezone
 
 # Use variáveis de ambiente (boa prática do Docker)
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://mongos:27017")
 RABBIT_URL = os.getenv("RABBIT_URL", "amqp://guest:guest@rabbitmq:5672/")
 
-async def processar_vendas(message, db): # Receba o db como argumento
+async def processar_vendas(message, db):
     payload = json.loads(message.body)
+    pedido_id = payload.get("pedido_id")
     
     try:
-        # .strip() previne caracteres invisíveis/newlines do JSON
+        # --- 1. FILTRO DE IDEMPOTÊNCIA ---
+        # Verificamos se o pedido já existe na coleção de vendas
+        pedido_ja_existe = await db.vendas.find_one({"pedido_id": pedido_id})
+        
+        if pedido_ja_existe:
+            print(f"Pedido {pedido_id} já foi processado anteriormente. Ignorando.")
+            return
+
+        # --- 2. PREPARAÇÃO DOS DADOS ---
         u_id = payload["usuario_id"].strip()
+        e_id = payload["evento_id"].strip()
         usuario_oid = ObjectId(u_id)
-        
-        # DEBUG: Log para conferir o que o worker está tentando buscar
-        print(f"Buscando usuário: {usuario_oid} tipo: {type(usuario_oid)}")
+        evento_oid = ObjectId(e_id)
+        quantidade = payload.get("quantidade", 1)
 
+        # --- 3. VALIDAÇÃO DO USUÁRIO ---
         usuario = await db.usuarios.find_one({"_id": usuario_oid})
-        
         if not usuario:
-            # TENTATIVA DE ESCAPE: Se não achar como ObjectId, tenta como String
-            # Isso ajuda a diagnosticar se o erro é o tipo de dado
-            usuario = await db.usuarios.find_one({"_id": u_id})
-            if usuario:
-                print("AVISO: Usuário encontrado como STRING, não como ObjectId!")
-            else:
-                print(f"Erro: Usuário {u_id} não encontrado de nenhuma forma.")
-                return
+            print(f"Erro: Usuário {u_id} não encontrado.")
+            return
 
-        # ... resto do código (vendas, estoque, etc)
-        print(f"Usuário encontrado: {usuario['nome']}")
+        print(f"Processando Pedido: {pedido_id} | Usuário: {usuario['nome']}")
+
+        # --- 4. TENTATIVA ATÓMICA DE ESTOQUE ---
+        resultado_estoque = await db.eventos.update_one(
+            {"_id": evento_oid, "quantidade_disponivel": {"$gte": quantidade}},
+            {"$inc": {"quantidade_disponivel": -quantidade}}
+        )
+
+        # --- 5. DEFINIÇÃO DO RESULTADO ---
+        venda_doc = {
+            "pedido_id": pedido_id,
+            "evento_id": evento_oid,
+            "usuario_id": usuario_oid, # Shard Key!
+            "quantidade": quantidade,
+            "valor_unitario": payload.get("valor_total", 0),
+            "data_processamento": datetime.now(timezone.utc)
+        }
+
+        if resultado_estoque.modified_count > 0:
+            venda_doc["status"] = "CONCLUIDO"
+            print(f"SUCESSO: Venda {pedido_id} finalizada.")
+        else:
+            venda_doc["status"] = "ERRO_ESTOQUE_ESGOTADO"
+            print(f"--ERRO-- Estoque esgotado para o pedido {pedido_id}.")
+
+        # --- 6. GRAVAÇÃO FINAL (A MEMÓRIA DO SISTEMA) ---
+        await db.vendas.insert_one(venda_doc)
 
     except Exception as e:
-        print(f"Erro no processamento: {e}")
+        print(f"Erro crítico no processamento: {e}")
 
 async def main():
     # INICIALIZAÇÃO DENTRO DO MAIN

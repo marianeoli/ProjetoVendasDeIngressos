@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, date
 
 # --- MODELO DE EVENTO ---
@@ -11,32 +11,45 @@ class EventoCreate(BaseModel):
     quantidade_total: int
     quantidade_disponivel: int
     descricao: Optional[str] = None
-    status: str
+    status: Optional[str] = "EM ESPERA"  # Valor padrão
 
 class EventoResponse(EventoCreate):
-    id: str  # O ID que vem do Mongo
+    id: str
 
-# MODELO DE USUÁRIO
+# --- MODELO DE USUÁRIO (Com Roles e JWT) ---
 class UsuarioCreate(BaseModel):
     nome: str
     email: EmailStr
-    senha: str  
+    senha: str
+    role: str = "cliente"  # Valor padrão: cliente
 
 class UsuarioResponse(BaseModel):
     id: str
     nome: str 
     email: EmailStr
+    role: str
 
 class UsuarioLogin(BaseModel):
     email: EmailStr
     senha: str
 
-# MODELO DE COMPRA (Atualizado) 
+# Esquema para o Token JWT que devolveremos no login
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    usuario_id: Optional[str] = None
+    role: Optional[str] = None
+
+# --- MODELO DE COMPRA (Otimizado) ---
 class PedidoCreate(BaseModel):
-    evento_id: str  # Agora exigimos o ID real do evento
+    evento_id: str
     usuario_id: str
-    data_nascimento: date
-    data_hora: datetime
     quantidade: int
-    valor_total: float
-    status: str
+    # Tornamos os campos abaixo opcionais para o usuário não precisar enviá-los no POST
+    # O Worker e a API cuidarão desses valores internamente
+    data_nascimento: Optional[date] = None
+    data_hora: Optional[datetime] = None
+    valor_total: Optional[float] = 0.0
+    status: Optional[str] = "PENDENTE"
