@@ -7,7 +7,7 @@ class EventoCreate(BaseModel):
     nome: str
     data: str
     local: str
-    preco: float
+    valor_total: float
     quantidade_total: int
     quantidade_disponivel: int
     descricao: Optional[str] = None
