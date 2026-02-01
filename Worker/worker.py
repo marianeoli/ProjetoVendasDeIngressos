@@ -47,11 +47,12 @@ async def processar_vendas(message, db):
         # --- 5. DEFINIÇÃO DO RESULTADO ---
         venda_doc = {
             "pedido_id": pedido_id,
-            "evento_id": evento_oid,
-            "usuario_id": usuario_oid, # Shard Key!
+            "evento_id": evento_oid,  # ObjectId
+            "usuario_id": usuario_oid, # ObjectId (Importante para o Sharding na AWS!)
             "quantidade": quantidade,
-            "valor_unitario": payload.get("valor_total", 0),
-            "data_processamento": datetime.now(timezone.utc)
+            "valor_total": payload.get("valor_total", 0), # Alinhado com Schema
+            "data_hora": datetime.now(timezone.utc),      # Alinhado com Schema
+            "status": "CONCLUIDO" if resultado_estoque.modified_count > 0 else "ERRO_ESTOQUE"
         }
 
         if resultado_estoque.modified_count > 0:

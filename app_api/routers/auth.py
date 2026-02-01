@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app_api.schemas import UsuarioCreate, Token, TokenData # UsuarioLogin removido (não usado aqui)
-from app_api.database import usuarios_collection
+from app_api.database import usuarios_collection, db
 from bson import ObjectId
 
 # --- CONFIGURAÇÕES DE SEGURANÇA ---
@@ -93,3 +93,4 @@ async def obter_admin_atual(usuario: TokenData = Depends(obter_usuario_atual)):
             detail="Acesso restrito a administradores"
         )
     return usuario
+

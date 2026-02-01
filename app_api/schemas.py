@@ -23,11 +23,19 @@ class UsuarioCreate(BaseModel):
     senha: str
     role: str = "cliente"  # Valor padrão: cliente
 
+class UsuarioUpdate(BaseModel):
+    nome: Optional[str] = None
+    email: Optional[EmailStr] = None
+    senha: Optional[str] = None
+
 class UsuarioResponse(BaseModel):
     id: str
     nome: str 
     email: EmailStr
     role: str
+
+    class Config:
+        from_attributes = True
 
 class UsuarioLogin(BaseModel):
     email: EmailStr
@@ -53,3 +61,14 @@ class PedidoCreate(BaseModel):
     data_hora: Optional[datetime] = None
     valor_total: Optional[float] = 0.0
     status: Optional[str] = "PENDENTE"
+
+class HistoricoVendaResponse(BaseModel):
+    id: str
+    evento_id: str
+    quantidade: int
+    valor_unitario: float
+    status: str
+    data_processamento: datetime
+
+    class Config:
+        from_attributes = True

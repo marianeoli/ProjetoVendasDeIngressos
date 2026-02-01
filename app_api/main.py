@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app_api.routers import events, auth
+from app_api.routers import events, auth, users
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
@@ -18,6 +18,9 @@ app.include_router(events.router, prefix="/api/v1", tags=["Eventos"])
 
 # Inclui as rotas de Autenticação
 app.include_router(auth.router, prefix="/api/v1", tags=["Autenticação"])
+
+# Inclui as rotas de Usuários
+app.include_router(users.router, prefix="/api/v1", tags=["Usuários"])
 
 @app.get("/")
 async def health_check():

@@ -3,140 +3,290 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bilheteria Pro - Sistema Distribuído</title>
+    <title>Bilheteria.io - Premium</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .glass { background: rgba(17, 24, 39, 0.8); backdrop-filter: blur(12px); }
+    </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+<body class="bg-slate-950 text-slate-200 min-h-screen font-sans selection:bg-purple-500 selection:text-white">
 
-    <nav class="border-b border-gray-800 p-4 bg-gray-900 sticky top-0 z-50">
+    <nav class="border-b border-slate-800 p-4 glass sticky top-0 z-50">
         <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
-                Bilheteria Distribuída
+            <h1 class="text-2xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent cursor-pointer" onclick="navegar('eventos')">
+                BILHETERIA.IO
             </h1>
-            <div id="user-info" class="text-sm text-gray-400">
-                </div>
+            <div id="nav-links" class="hidden flex gap-6 text-sm font-bold items-center">
+                <button onclick="navegar('eventos')" class="hover:text-purple-400 transition">EVENTOS</button>
+                <button onclick="navegar('perfil')" class="hover:text-purple-400 transition">MEU PERFIL</button>
+                <button id="admin-link" onclick="navegar('admin')" class="hidden text-pink-500 border border-pink-500/30 px-3 py-1 rounded-lg hover:bg-pink-500 transition">PAINEL ADMIN</button>
+                <button onclick="logout()" class="text-slate-500 hover:text-red-500">SAIR</button>
+            </div>
         </div>
     </nav>
 
     <main class="container mx-auto py-10 px-4">
-        <section id="login-section" class="max-w-md mx-auto bg-gray-800 p-8 rounded-xl shadow-2xl border border-gray-700">
-            <h2 class="text-xl font-semibold mb-6 text-center">Acesse sua Conta</h2>
-            <div class="space-y-4">
-                <input type="email" id="email" placeholder="Email" class="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:border-purple-500 outline-none">
-                <input type="password" id="pass" placeholder="Senha" class="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:border-purple-500 outline-none">
-                <button onclick="fazerLogin()" class="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded font-bold transition">Entrar</button>
+        
+        <section id="auth-section" class="max-w-md mx-auto mt-20">
+            <div id="login-card" class="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl">
+                <h2 class="text-2xl font-bold text-center mb-8">Bem-vindo</h2>
+                <div class="space-y-4">
+                    <input type="email" id="email" placeholder="E-mail" class="w-full p-4 rounded-2xl bg-slate-950 border border-slate-800 outline-none focus:border-purple-500 transition">
+                    <input type="password" id="pass" placeholder="Senha" class="w-full p-4 rounded-2xl bg-slate-950 border border-slate-800 outline-none focus:border-purple-500 transition">
+                    <button onclick="fazerLogin()" class="w-full bg-purple-600 hover:bg-purple-700 py-4 rounded-2xl font-bold transition shadow-lg shadow-purple-500/20">Entrar</button>
+                    <p class="text-center text-xs text-slate-500">Novo aqui? <a href="javascript:void(0)" onclick="alternarAuth()" class="text-purple-400">Cadastre-se</a></p>
+                </div>
+            </div>
+
+            <div id="register-card" class="hidden bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl">
+                <h2 class="text-2xl font-bold text-center mb-8">Criar Conta</h2>
+                <div class="space-y-4">
+                    <input type="text" id="reg-nome" placeholder="Nome Completo" class="w-full p-4 rounded-2xl bg-slate-950 border border-slate-800 outline-none focus:border-purple-500 transition">
+                    <input type="email" id="reg-email" placeholder="E-mail" class="w-full p-4 rounded-2xl bg-slate-950 border border-slate-800 outline-none focus:border-purple-500 transition">
+                    <input type="password" id="reg-pass" placeholder="Senha" class="w-full p-4 rounded-2xl bg-slate-950 border border-slate-800 outline-none focus:border-purple-500 transition">
+                    <button onclick="fazerCadastro()" class="w-full bg-green-600 hover:bg-green-700 py-4 rounded-2xl font-bold transition">Cadastrar</button>
+                    <p class="text-center text-xs text-slate-500">Já tem conta? <a href="javascript:void(0)" onclick="alternarAuth()" class="text-purple-400">Faça Login</a></p>
+                </div>
             </div>
         </section>
 
         <section id="eventos-section" class="hidden">
-            <div class="flex justify-between items-center mb-8">
-                <h2 class="text-3xl font-bold text-white">Eventos em Destaque</h2>
-                <div class="bg-purple-900/30 text-purple-400 px-4 py-2 rounded-full border border-purple-500/30 text-sm">
-                    ⚡ Processamento via RabbitMQ Ativo
+            <h2 class="text-4xl font-black mb-10 text-white">Próximos Shows</h2>
+            <div id="lista-eventos" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
+        </section>
+
+        <section id="perfil-section" class="hidden max-w-5xl mx-auto">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-xl h-fit">
+                    <h3 class="text-xl font-bold mb-6 flex items-center gap-2">👤 Meus Dados</h3>
+                    <div class="space-y-4">
+                        <input type="text" id="perf-nome" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 outline-none">
+                        <input type="text" id="perf-email" disabled class="w-full p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-600 cursor-not-allowed">
+                        <input type="password" id="perf-senha" placeholder="Nova Senha" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 outline-none">
+                        <button onclick="salvarPerfil()" class="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-xl font-bold transition">Salvar Alterações</button>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2">
+                    <h3 class="text-xl font-bold mb-6 flex items-center gap-2">🎟️ Meus Ingressos</h3>
+                    <div id="historico-compras" class="bg-slate-900 rounded-3xl border border-slate-800 min-h-[300px] overflow-hidden"></div>
                 </div>
             </div>
-            
-            <div id="lista-eventos" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                </div>
         </section>
+
+        <section id="admin-section" class="hidden">
+            <h2 class="text-3xl font-black mb-8 text-pink-500">Monitoramento Global</h2>
+            <div id="admin-cards" class="grid grid-cols-1 md:grid-cols-4 gap-6"></div>
+        </section>
+
     </main>
 
     <script>
         const API_URL = "http://localhost:8000/api/v1";
-        let usuarioAtual = null;
 
-        // --- FUNÇÕES DE LOGIN ---
+        // --- UTILS ---
+        function extrairDadosToken() {
+            const token = localStorage.getItem('token');
+            if (!token) return null;
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                // O FastAPI guarda o ID no 'sub' e a role no 'role'
+                return { id: payload.sub, role: payload.role }; 
+            } catch (e) { return null; }
+        }
+        function alternarAuth() {
+            document.getElementById('login-card').classList.toggle('hidden');
+            document.getElementById('register-card').classList.toggle('hidden');
+        }
+
+        function navegar(tela) {
+            const secoes = ['auth-section', 'eventos-section', 'perfil-section', 'admin-section'];
+            secoes.forEach(s => document.getElementById(s).classList.add('hidden'));
+            document.getElementById(`${tela}-section`).classList.remove('hidden');
+            
+            if (tela === 'perfil') {
+                carregarDadosPerfil();
+                carregarHistorico();
+            }
+            if (tela === 'admin') carregarDashboardAdmin();
+        }
+
+        // --- AUTH ---
         async function fazerLogin() {
             const email = document.getElementById('email').value;
             const senha = document.getElementById('pass').value;
+            const form = new URLSearchParams();
+            form.append('username', email);
+            form.append('password', senha);
 
             try {
-                const response = await fetch(`${API_URL}/auth/login`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ email, senha })
-                });
-
-                if (response.ok) {
-                    usuarioAtual = await response.json();
-                    document.getElementById('login-section').classList.add('hidden');
-                    document.getElementById('eventos-section').classList.remove('hidden');
-                    document.getElementById('user-info').innerText = `Olá, ${usuarioAtual.nome}`;
+                const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', body: form });
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem('token', data.access_token);
+                    const user = extrairDadosToken();
+                    if (user && user.role === 'admin') document.getElementById('admin-link').classList.remove('hidden');
+                    document.getElementById('nav-links').classList.remove('hidden');
+                    navegar('eventos');
                     carregarEventos();
-                } else {
-                    Swal.fire('Erro', 'Credenciais inválidas', 'error');
-                }
-            } catch (err) {
-                Swal.fire('Erro', 'API fora do ar', 'error');
-            }
+                } else { Swal.fire('Erro', 'Credenciais inválidas', 'error'); }
+            } catch (e) { Swal.fire('Erro', 'API Offline', 'warning'); }
         }
 
-        // --- CARREGAR EVENTOS ---
-        async function carregarEventos() {
-            const res = await fetch(`${API_URL}/eventos`);
-            const eventos = await res.json();
-            const container = document.getElementById('lista-eventos');
-            container.innerHTML = '';
-
-            eventos.forEach(ev => {
-                container.innerHTML += `
-                    <div class="bg-gray-800 rounded-2xl overflow-hidden border border-gray-700 hover:border-purple-500 transition-all duration-300 group">
-                        <div class="p-6">
-                            <span class="text-xs font-bold text-purple-400 uppercase tracking-widest">${ev.status}</span>
-                            <h3 class="text-xl font-bold mt-2 text-white">${ev.nome}</h3>
-                            <p class="text-gray-400 text-sm mt-2">📍 ${ev.local} | 📅 ${ev.data}</p>
-                            
-                            <div class="mt-6 flex justify-between items-end">
-                                <div>
-                                    <p class="text-gray-500 text-xs">Preço unitário</p>
-                                    <p class="text-2xl font-black text-white">R$ ${ev.preco}</p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-gray-500 text-xs mb-1">🎟️ ${ev.quantidade_disponivel} restam</p>
-                                    <button onclick="comprar('${ev.id}', ${ev.preco})" class="bg-white text-black px-6 py-2 rounded-lg font-bold hover:bg-purple-500 hover:text-white transition">Comprar</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        // --- ENVIAR PARA A FILA (RABBITMQ) ---
-        async function comprar(eventoId, preco) {
+        async function fazerCadastro() {
             const payload = {
-                evento_id: eventoId,
-                usuario_id: usuarioAtual.usuario_id,
-                data_nascimento: "2000-01-01",
-                data_hora: new Date().toISOString(),
-                quantidade: 1,
-                valor_total: preco,
-                status: "PENDENTE"
+                nome: document.getElementById('reg-nome').value,
+                email: document.getElementById('reg-email').value,
+                senha: document.getElementById('reg-pass').value,
+                role: 'cliente'
             };
+            try {
+                const res = await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) { Swal.fire('Sucesso!', 'Conta criada!', 'success'); alternarAuth(); }
+                else { const err = await res.json(); Swal.fire('Erro', err.detail, 'error'); }
+            } catch (e) { Swal.fire('Erro', 'API Offline', 'error'); }
+        }
+
+        // --- USUÁRIO ---
+        async function carregarDadosPerfil() {
+            const token = localStorage.getItem('token');
+            try {
+                const res = await fetch(`${API_URL}/users/me`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (res.ok) {
+                    const dados = await res.json();
+                    document.getElementById('perf-nome').value = dados.nome;
+                    document.getElementById('perf-email').value = dados.email;
+                }
+            } catch (e) { console.error("Erro ao carregar perfil"); }
+        }
+
+        async function salvarPerfil() {
+            const token = localStorage.getItem('token');
+            const user = extrairDadosToken();
+            const payload = { nome: document.getElementById('perf-nome').value };
+            const senha = document.getElementById('perf-senha').value;
+            if (senha) payload.senha = senha;
+
+            try {
+                const res = await fetch(`${API_URL}/users/${user.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) { Swal.fire('Sucesso!', 'Perfil atualizado!', 'success'); carregarDadosPerfil(); }
+            } catch (e) { Swal.fire('Erro', 'Falha ao salvar', 'error'); }
+        }
+
+        // --- COMPRAS & HISTÓRICO ---
+        async function carregarHistorico() {
+            const token = localStorage.getItem('token');
+            const container = document.getElementById('historico-compras');
+            container.innerHTML = '<div class="p-10 text-center text-slate-500 italic">Buscando ingressos...</div>';
+
+            try {
+                const res = await fetch(`${API_URL}/vendas/historico`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const vendas = await res.json();
+                if (!vendas.length) { container.innerHTML = '<div class="p-10 text-center text-slate-500">Nenhuma compra.</div>'; return; }
+
+                let html = '<table class="w-full text-left"><thead class="bg-slate-800/50 text-[10px] uppercase font-black text-slate-500"><tr class="border-b border-slate-800"><th class="p-4">Evento</th><th class="p-4">Qtd</th><th class="p-4">Total</th><th class="p-4">Status</th></tr></thead><tbody class="divide-y divide-slate-800">';
+                vendas.forEach(v => {
+                    html += `<tr><td class="p-4 font-bold text-white">${v.evento_id}</td><td class="p-4 text-slate-400">${v.quantidade}</td><td class="p-4 text-green-400 font-bold">R$ ${v.valor_unitario}</td><td class="p-4"><span class="text-[10px] font-bold px-2 py-1 rounded bg-slate-800">${v.status}</span></td></tr>`;
+                });
+                container.innerHTML = html + '</tbody></table>';
+            } catch (e) { container.innerHTML = '<div class="p-10 text-red-500 text-center">Erro ao carregar histórico.</div>'; }
+        }
+
+        async function comprar(eventoId) {
+            const token = localStorage.getItem('token');
+            const user = extrairDadosToken();
+            const { value: qtd } = await Swal.fire({ title: 'Quantidade', input: 'number', inputValue: 1, showCancelButton: true });
+            if (!qtd) return;
+
+            Swal.fire({ title: 'Processando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
             try {
                 const res = await fetch(`${API_URL}/comprar`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ evento_id: eventoId, usuario_id: user.id, quantidade: parseInt(qtd) })
                 });
-
-                if (res.ok) {
-                    Swal.fire({
-                        title: 'Pedido Enviado!',
-                        text: 'Sua compra está na fila de processamento assíncrono.',
-                        icon: 'success',
-                        toast: true,
-                        position: 'top-end',
-                        showConfirmButton: false,
-                        timer: 3000
-                    });
-                }
-            } catch (err) {
-                Swal.fire('Erro', 'Não foi possível conectar ao RabbitMQ', 'error');
-            }
+                const data = await res.json();
+                if (res.ok) verificarStatusPedido(data.pedido_id);
+                else Swal.fire('Erro', data.detail, 'error');
+            } catch (err) { Swal.fire('Erro', 'Sem conexão', 'error'); }
         }
+
+        function verificarStatusPedido(pedidoId) {
+            const token = localStorage.getItem('token');
+            let tentativas = 0;
+            
+            let interval = setInterval(async () => {
+                tentativas++;
+                try {
+                    const res = await fetch(`${API_URL}/vendas/${pedidoId}`, { 
+                        headers: { 'Authorization': `Bearer ${token}` } 
+                    });
+
+                    if (res.ok) {
+                        const venda = await res.json();
+                        if (venda.status === "CONCLUIDO") {
+                            clearInterval(interval);
+                            Swal.fire('Sucesso!', 'Ingresso garantido!', 'success');
+                            carregarEventos(); 
+                            carregarHistorico();
+                        }
+                    } else if (tentativas > 10) { // Timeout após 20 segundos
+                        clearInterval(interval);
+                        Swal.fire('Aviso', 'O pedido está demorando mais que o esperado. Verifique o perfil em instantes.', 'info');
+                    }
+                } catch (e) { console.log("Aguardando..."); }
+            }, 2000);
+        }
+        async function carregarEventos() {
+            try {
+                const res = await fetch(`${API_URL}/eventos`);
+                const eventos = await res.json();
+                const container = document.getElementById('lista-eventos');
+                container.innerHTML = '';
+                eventos.forEach(ev => {
+                    container.innerHTML += `<div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 hover:border-purple-500 transition-all"><h3 class="text-xl font-bold mb-2">${ev.nome}</h3><p class="text-slate-500 text-sm mb-6">📍 Brasil, SP</p><div class="flex justify-between items-center"><span class="text-2xl font-black text-white">R$ ${ev.preco}</span><button onclick="comprar('${ev.id}')" class="bg-white text-black px-5 py-2 rounded-xl font-bold hover:bg-purple-500 hover:text-white transition">Comprar</button></div></div>`;
+                });
+            } catch (e) { console.error("Erro eventos"); }
+        }
+
+        async function carregarDashboardAdmin() {
+            const token = localStorage.getItem('token');
+            const container = document.getElementById('admin-cards');
+            
+            try {
+                const res = await fetch(`${API_URL}/dashboard/vendas`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const dados = await res.json();
+                    container.innerHTML = dados.map(item => `
+                        <div class="bg-slate-900 p-6 rounded-3xl border border-pink-500/20 shadow-xl">
+                            <h4 class="text-pink-400 text-[10px] font-black uppercase tracking-widest">${item.evento}</h4>
+                            <div class="mt-4">
+                                <p class="text-3xl font-black text-white">${item.total_ingressos_vendidos}</p>
+                                <p class="text-xs text-slate-500 uppercase">Ingressos Vendidos</p>
+                            </div>
+                            <div class="mt-4 pt-4 border-t border-slate-800">
+                                <p class="text-green-400 font-bold">R$ ${item.arrecadacao_total || 0}</p>
+                                <p class="text-[10px] text-slate-500 uppercase">Receita Total</p>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) { console.error("Erro no Dashboard"); }
+        }
+
+        function logout() { localStorage.clear(); location.reload(); }
     </script>
 </body>
 </html>
