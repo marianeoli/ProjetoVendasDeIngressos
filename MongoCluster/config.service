@@ -1,0 +1,12 @@
+[Unit]
+Description=MongoDB Service
+After=network.target
+
+[Service]
+User=mongodb
+Group=mongodb
+ExecStart=/usr/bin/mongod --config /etc/config.conf
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

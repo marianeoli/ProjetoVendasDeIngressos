@@ -1,17 +1,14 @@
-# Pastas de dados do MongoDB (caso sejam criadas localmente)
-MongoCluster/data/
-config_data/
-shard1_data/
-shard2_data/
-shard3_data/
-mongo_data/
+# Pastas de dados
+**/data/
+*.lock
 
 # Arquivos de sistema
 .DS_Store
 Thumbs.db
 
-# Logs do Docker
+# Logs do Docker e mongo
 *.log
+MongoCluster/*.log
 
 #Python
 .venv/

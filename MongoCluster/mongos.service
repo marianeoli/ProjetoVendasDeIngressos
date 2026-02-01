@@ -1,0 +1,12 @@
+[Unit]
+Description=MongoDB Router (mongos)
+After=network.target config.service
+
+[Service]
+User=mongodb
+Group=mongodb
+ExecStart=/usr/bin/mongos --config /etc/mongos.conf
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
