@@ -104,10 +104,10 @@
             if (!token) return null;
             try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
-                // O FastAPI guarda o ID no 'sub' e a role no 'role'
                 return { id: payload.sub, role: payload.role }; 
             } catch (e) { return null; }
         }
+
         function alternarAuth() {
             document.getElementById('login-card').classList.toggle('hidden');
             document.getElementById('register-card').classList.toggle('hidden');
@@ -206,12 +206,102 @@
                 const vendas = await res.json();
                 if (!vendas.length) { container.innerHTML = '<div class="p-10 text-center text-slate-500">Nenhuma compra.</div>'; return; }
 
-                let html = '<table class="w-full text-left"><thead class="bg-slate-800/50 text-[10px] uppercase font-black text-slate-500"><tr class="border-b border-slate-800"><th class="p-4">Evento</th><th class="p-4">Qtd</th><th class="p-4">Total</th><th class="p-4">Status</th></tr></thead><tbody class="divide-y divide-slate-800">';
+                let html = `
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-800/50 text-[10px] uppercase font-black text-slate-500">
+                            <tr class="border-b border-slate-800">
+                                <th class="p-4">Evento</th>
+                                <th class="p-4 text-center">Qtd</th>
+                                <th class="p-4 text-right">Total</th>
+                                <th class="p-4 text-right">Status / Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800">`;
+
                 vendas.forEach(v => {
-                    html += `<tr><td class="p-4 font-bold text-white">${v.evento_id}</td><td class="p-4 text-slate-400">${v.quantidade}</td><td class="p-4 text-green-400 font-bold">R$ ${v.valor_unitario}</td><td class="p-4"><span class="text-[10px] font-bold px-2 py-1 rounded bg-slate-800">${v.status}</span></td></tr>`;
+                    // Calcula o total caso o campo valor_total venha zerado do backend
+                    const total = v.valor_total || (v.quantidade * v.valor_unitario);
+                    const idPedidoReal = v.pedido_id || v.id;
+                    
+                    // Lógica dinâmica para o botão de pagamento
+                    let acaoHtml = '';
+                    if (v.status === 'RESERVADO') {
+                        acaoHtml = `<button onclick="finalizarPagamento('${idPedidoReal}')" class="bg-purple-600 hover:bg-purple-700 text-white text-[10px] px-3 py-1 rounded-lg font-bold transition shadow-lg shadow-purple-500/20">PAGAR AGORA</button>`;
+                    } else if (v.status === 'PAGO') {
+                        acaoHtml = `<span class="text-green-400 font-bold flex items-center justify-end gap-1 text-[10px]">PAGO</span>`;
+                    } else {
+                        acaoHtml = `<span class="text-[10px] font-bold px-2 py-1 rounded bg-slate-800 text-slate-500">${v.status}</span>`;
+                    }
+
+                    html += `
+                        <tr class="hover:bg-slate-800/20 transition">
+                            <td class="p-4">
+                                <div class="font-bold text-white">${v.evento_id}</div>
+                                <div class="text-[9px] text-slate-600 font-mono">${v.pedido_id}</div>
+                            </td>
+                            <td class="p-4 text-slate-400 text-center">${v.quantidade}x</td>
+                            <td class="p-4 text-green-400 font-bold text-right">R$ ${parseFloat(total).toFixed(2)}</td>
+                            <td class="p-4 text-right">${acaoHtml}</td>
+                        </tr>`;
                 });
+                
                 container.innerHTML = html + '</tbody></table>';
             } catch (e) { container.innerHTML = '<div class="p-10 text-red-500 text-center">Erro ao carregar histórico.</div>'; }
+        }
+
+        async function finalizarPagamento(pedidoId) {
+            if (!pedidoId || pedidoId === 'undefined') {
+                return Swal.fire('Erro', 'ID do pedido não encontrado.', 'error');
+            }
+
+            // 1. Simulação de Interface de Pagamento
+            const { value: metodo } = await Swal.fire({
+                title: 'Finalizar Pagamento',
+                input: 'select',
+                inputOptions: { 'pix': 'PIX', 'cartao': 'Cartão de Crédito' },
+                inputPlaceholder: 'Selecione o método',
+                showCancelButton: true,
+                confirmButtonText: 'Confirmar Pagamento',
+                confirmButtonColor: '#7c3aed'
+            });
+
+            if (!metodo) return;
+
+            // 2. Simulação de "Processando com o Banco"
+            Swal.fire({
+                title: 'Comunicando com a operadora...',
+                html: 'Aguarde a validação dos dados.',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Simulamos um atraso de 2 segundos para dar realismo
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`${API_URL}/vendas/${pedidoId}/confirmar`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    await Swal.fire({
+                        icon: 'success',
+                        title: 'Pago com Sucesso!',
+                        text: 'O seu lugar está garantido. O voucher foi enviado para o seu e-mail.',
+                        confirmButtonColor: '#10b981'
+                    });
+                    carregarHistorico(); // Atualiza a lista
+                } else {
+                    const erro = await res.json();
+                    Swal.fire('Erro no Pagamento', erro.detail || 'Cartão recusado', 'error');
+                }
+            } catch (e) {
+                Swal.fire('Erro de Rede', 'Não foi possível contactar o servidor de pagamentos.', 'error');
+            }
         }
 
         async function comprar(eventoId) {
@@ -247,29 +337,75 @@
 
                     if (res.ok) {
                         const venda = await res.json();
-                        if (venda.status === "CONCLUIDO") {
+                        
+                        // Se o Worker já reservou o lugar no banco
+                        if (venda.status === "RESERVADO") {
                             clearInterval(interval);
-                            Swal.fire('Sucesso!', 'Ingresso garantido!', 'success');
-                            carregarEventos(); 
-                            carregarHistorico();
+                            
+                            const { isConfirmed } = await Swal.fire({
+                                title: 'Vaga Reservada!',
+                                text: 'Seu ingresso está garantido por 10 minutos. Deseja pagar agora?',
+                                icon: 'success',
+                                showCancelButton: true,
+                                confirmButtonText: 'Sim, Pagar!',
+                                cancelButtonText: 'Pagar depois',
+                                confirmButtonColor: '#9333ea'
+                            });
+
+                            if (isConfirmed) {
+                                finalizarPagamento(pedidoId);
+                            } else {
+                                navegar('perfil'); // Vai para o perfil onde ele pode ver o ingresso reservado
+                            }
                         }
-                    } else if (tentativas > 10) { // Timeout após 20 segundos
+                    } else if (tentativas > 15) { // Aguarda até 30 segundos
                         clearInterval(interval);
-                        Swal.fire('Aviso', 'O pedido está demorando mais que o esperado. Verifique o perfil em instantes.', 'info');
+                        Swal.fire('Aviso', 'O sistema está processando sua reserva. Verifique seu perfil em instantes.', 'info');
                     }
-                } catch (e) { console.log("Aguardando..."); }
+                } catch (e) { console.log("Aguardando Worker..."); }
             }, 2000);
         }
+
         async function carregarEventos() {
             try {
                 const res = await fetch(`${API_URL}/eventos`);
                 const eventos = await res.json();
                 const container = document.getElementById('lista-eventos');
                 container.innerHTML = '';
+                
                 eventos.forEach(ev => {
-                    container.innerHTML += `<div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 hover:border-purple-500 transition-all"><h3 class="text-xl font-bold mb-2">${ev.nome}</h3><p class="text-slate-500 text-sm mb-6">📍 Brasil, SP</p><div class="flex justify-between items-center"><span class="text-2xl font-black text-white">R$ ${ev.valor_total}</span><button onclick="comprar('${ev.id}')" class="bg-white text-black px-5 py-2 rounded-xl font-bold hover:bg-purple-500 hover:text-white transition">Comprar</button></div></div>`;
+                    const estaPausado = ev.status === 'PAUSADO';
+                    const dataExibicao = ev.data.includes('T') ? new Date(ev.data).toLocaleString('pt-BR') : ev.data;
+                    
+                    container.innerHTML += `
+                        <div class="bg-slate-900 p-6 rounded-3xl border ${estaPausado ? 'border-slate-800 opacity-60' : 'border-slate-800 hover:border-purple-500'} transition-all group relative overflow-hidden">
+                            ${estaPausado ? '<div class="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] z-10 flex items-center justify-center"><span class="bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter shadow-lg shadow-red-500/20">Vendas Suspensas</span></div>' : ''}
+                            
+                            <div class="flex justify-between items-start mb-4">
+                                <h3 class="text-xl font-bold text-white group-hover:text-purple-400 transition">${ev.nome}</h3>
+                                <span class="bg-purple-500/10 text-purple-400 text-[10px] px-2 py-1 rounded-full font-bold">
+                                    ${estaPausado ? '---' : ev.quantidade_disponivel + ' RESTANTES'}
+                                </span>
+                            </div>
+                            
+                            <div class="space-y-2 mb-6">
+                                <p class="text-slate-400 text-sm flex items-center gap-2">📅 ${dataExibicao}</p>
+                                <p class="text-slate-400 text-sm flex items-center gap-2">📍 ${ev.local}</p>
+                            </div>
+
+                            <div class="flex justify-between items-center pt-4 border-t border-slate-800">
+                                <div class="flex flex-col">
+                                    <span class="text-[10px] text-slate-500 uppercase font-bold">Preço</span>
+                                    <span class="text-2xl font-black text-white">R$ ${parseFloat(ev.preco || ev.valor_total || 0).toFixed(2)}</span>
+                                </div>
+                                <button onclick="${estaPausado ? "Swal.fire('Aviso', 'As vendas estão pausadas.', 'info')" : `comprar('${ev.id}')`}" 
+                                        class="${estaPausado ? 'bg-slate-800 text-slate-600' : 'bg-purple-600 hover:bg-purple-700 text-white'} px-6 py-3 rounded-2xl font-bold transition-all">
+                                    ${estaPausado ? 'Indisponível' : 'Garantir Vaga'}
+                                </button>
+                            </div>
+                        </div>`;
                 });
-            } catch (e) { console.error("Erro eventos"); }
+            } catch (e) { console.error("Erro ao carregar eventos"); }
         }
 
         async function carregarDashboardAdmin() {
@@ -282,21 +418,47 @@
                 });
                 if (res.ok) {
                     const dados = await res.json();
-                    container.innerHTML = dados.map(item => `
-                        <div class="bg-slate-900 p-6 rounded-3xl border border-pink-500/20 shadow-xl">
-                            <h4 class="text-pink-400 text-[10px] font-black uppercase tracking-widest">${item.evento}</h4>
-                            <div class="mt-4">
-                                <p class="text-3xl font-black text-white">${item.total_ingressos_vendidos}</p>
-                                <p class="text-xs text-slate-500 uppercase">Ingressos Vendidos</p>
+                    container.innerHTML = dados.map(item => {
+                        const acaoTexto = item.status === 'PAUSADO' ? 'ATIVAR' : 'PAUSAR';
+                        const acaoCor = item.status === 'PAUSADO' ? 'text-green-500 bg-green-500/10 hover:bg-green-500' : 'text-red-500 bg-red-500/10 hover:bg-red-500';
+                        
+                        return `
+                        <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+                            <div class="flex justify-between items-start">
+                                <h4 class="text-pink-400 text-[10px] font-black uppercase tracking-widest">${item.evento}</h4>
+                                <span class="text-[10px] px-2 py-1 rounded bg-slate-800 text-slate-400">ID: ${item.id_evento.slice(-4)}</span>
                             </div>
-                            <div class="mt-4 pt-4 border-t border-slate-800">
-                                <p class="text-green-400 font-bold">R$ ${item.arrecadacao_total || 0}</p>
-                                <p class="text-[10px] text-slate-500 uppercase">Receita Total</p>
+                            <div class="grid grid-cols-2 gap-4 mt-6">
+                                <div><p class="text-2xl font-black text-white">${item.total_ingressos_vendidos}</p><p class="text-[10px] text-slate-500">Vendidos</p></div>
+                                <div><p class="text-2xl font-black text-green-400">${item.estoque_atual}</p><p class="text-[10px] text-slate-500">Estoque</p></div>
                             </div>
-                        </div>
-                    `).join('');
+                            <div class="mt-6 pt-4 border-t border-slate-800 flex justify-between items-center">
+                                <p class="text-lg font-bold text-white">R$ ${item.arrecadacao_total.toLocaleString()}</p>
+                                <button onclick="alternarStatusEvento('${item.id_evento}', '${item.status || 'ATIVO'}')" class="${acaoCor} text-[10px] px-3 py-1 rounded-lg hover:text-white transition">
+                                    ${acaoTexto}
+                                </button>
+                            </div>
+                        </div>`;
+                    }).join('');
                 }
             } catch (e) { console.error("Erro no Dashboard"); }
+        }
+
+        async function alternarStatusEvento(eventoId, statusAtual) {
+            const token = localStorage.getItem('token');
+            const novoStatus = statusAtual === 'PAUSADO' ? 'ATIVO' : 'PAUSADO';
+            
+            try {
+                const res = await fetch(`${API_URL}/eventos/${eventoId}/status?status=${novoStatus}`, {
+                    method: 'PATCH',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    Swal.fire('Sucesso!', `Vendas ${novoStatus === 'PAUSADO' ? 'suspensas' : 'reativadas'}.`, 'success');
+                    carregarDashboardAdmin();
+                }
+            } catch (e) { Swal.fire('Erro', 'Falha na comunicação', 'error'); }
         }
 
         function logout() { localStorage.clear(); location.reload(); }

@@ -43,6 +43,10 @@ async def processar_vendas(message, db):
             {"_id": evento_oid, "quantidade_disponivel": {"$gte": quantidade}},
             {"$inc": {"quantidade_disponivel": -quantidade}}
         )
+        
+        quantidade = payload.get("quantidade", 1)
+        valor_unitario = payload.get("valor_unitario", 0.0)
+        valor_total = quantidade * valor_unitario # Cálculo do total
 
         # --- 5. DEFINIÇÃO DO RESULTADO ---
         venda_doc = {
@@ -50,14 +54,15 @@ async def processar_vendas(message, db):
             "evento_id": evento_oid,  # ObjectId
             "usuario_id": usuario_oid, # ObjectId (Importante para o Sharding na AWS!)
             "quantidade": quantidade,
-            "valor_total": payload.get("valor_total", 0), # Alinhado com Schema
+            "valor_total": valor_total,
             "data_hora": datetime.now(timezone.utc),      # Alinhado com Schema
-            "status": "CONCLUIDO" if resultado_estoque.modified_count > 0 else "ERRO_ESTOQUE"
+            "status": "RESERVADO" if resultado_estoque.modified_count > 0 else "ERRO_ESTOQUE"
         }
 
-        if resultado_estoque.modified_count > 0:
-            venda_doc["status"] = "CONCLUIDO"
-            print(f"SUCESSO: Venda {pedido_id} finalizada.")
+        if resultado_estoque.modified_count > 0: 
+            venda_doc["status"] = "RESERVADO" 
+            print(f"SUCESSO: Venda {pedido_id} reservada no estoque.")
+        
         else:
             venda_doc["status"] = "ERRO_ESTOQUE_ESGOTADO"
             print(f"--ERRO-- Estoque esgotado para o pedido {pedido_id}.")

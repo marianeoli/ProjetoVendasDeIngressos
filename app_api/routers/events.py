@@ -15,6 +15,8 @@ async def listar_eventos():
     eventos = []
     async for evento in eventos_collection.find():
         evento["id"] = str(evento["_id"])
+        evento["preco"] = evento.get("valor_total") or evento.get("preco") or 0.0
+        evento["status"] = evento.get("status", "ATIVO") # Garante que o status vá para o Front
         eventos.append(evento)
     return eventos
 
@@ -29,6 +31,14 @@ async def criar_evento(evento: EventoCreate):
 @router.post("/comprar")
 async def comprar_ingresso(pedido: PedidoCreate, usuario: TokenData = Depends(obter_usuario_atual)):
     evento = await eventos_collection.find_one({"_id": ObjectId(pedido.evento_id)})
+
+    # VERIFICAÇÃO DE STATUS
+    if evento.get("status") == "PAUSADO":
+        raise HTTPException(status_code=400, detail="Vendas suspensas para este evento.")
+
+    if evento.get("quantidade_disponivel") <= 0:
+        raise HTTPException(status_code=400, detail="Ingressos esgotados!")
+
     if not evento:
         raise HTTPException(status_code=404, detail="Evento não encontrado")
 
@@ -116,6 +126,72 @@ async def dashboard_vendas(usuario: TokenData = Depends(obter_admin_atual)):
             "estoque_atual": evento.get("quantidade_disponivel"),
             "total_ingressos_vendidos": total_vendido,
             "preco_unitario": evento.get("preco"),
-            "arrecadacao_total": total_vendido * evento.get("preco", 0)
+            "arrecadacao_total": total_vendido * evento.get("valor_total", 0),
+            "status": evento.get("status", "ATIVO")
         })
+
     return resumo
+
+# Alterar status ingresso
+
+@router.patch("/eventos/{evento_id}/status")
+async def alterar_status_evento(
+    evento_id: str, 
+    status: str, # "ATIVO", "PAUSADO" ou "ESGOTADO"
+    usuario: TokenData = Depends(obter_admin_atual)
+):
+    resultado = await eventos_collection.update_one(
+        {"_id": ObjectId(evento_id)},
+        {"$set": {"status": status}}
+    )
+    
+    if resultado.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Evento não encontrado")
+        
+    return {"status": "sucesso", "novo_status": status}
+
+# app_api/routers/events.py
+
+@router.post("/vendas/{pedido_id}/confirmar")
+async def confirmar_pagamento(pedido_id: str, usuario: TokenData = Depends(obter_usuario_atual)):
+    # 1. Transformamos o ID do usuário logado em ObjectId (pois é como o Worker salvou)
+    usuario_oid = ObjectId(usuario.usuario_id)
+
+    # 2. Fazemos o update incluindo a SHARD KEY (usuario_id) no filtro
+    # Isso permite que o mongos direcione a requisição para o shard correto
+    resultado = await vendas_collection.update_one(
+        {
+            "pedido_id": pedido_id, 
+            "usuario_id": usuario_oid  # <--- O SEGREDO ESTÁ AQUI
+        },
+        {"$set": {"status": "PAGO", "data_confirmacao": datetime.now()}}
+    )
+    
+    if resultado.matched_count == 0:
+        raise HTTPException(
+            status_code=404, 
+            detail="Reserva não encontrada ou Shard Key incorreta."
+        )
+    
+    return {"status": "sucesso", "mensagem": "Pagamento confirmado via Shard!"}
+
+@router.post("/vendas/{pedido_id}/cancelar")
+async def cancelar_reserva(pedido_id: str, usuario: TokenData = Depends(obter_usuario_atual)):
+    venda = await vendas_collection.find_one({"pedido_id": pedido_id})
+    
+    if not venda or venda["status"] == "PAGO":
+        raise HTTPException(status_code=400, detail="Não é possível cancelar uma venda paga.")
+
+    # 1. Devolve ao estoque de forma atômica
+    await eventos_collection.update_one(
+        {"_id": venda["evento_id"]},
+        {"$inc": {"quantidade_disponivel": venda["quantidade"]}}
+    )
+
+    # 2. Atualiza o status da venda
+    await vendas_collection.update_one(
+        {"pedido_id": pedido_id},
+        {"$set": {"status": "CANCELADO"}}
+    )
+    
+    return {"status": "cancelado", "mensagem": "Ingresso devolvido ao estoque."}

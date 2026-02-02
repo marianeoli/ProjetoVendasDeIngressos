@@ -15,6 +15,17 @@ class EventoCreate(BaseModel):
 
 class EventoResponse(EventoCreate):
     id: str
+    nome: str
+    data: str
+    local: str
+    valor_total: float
+    quantidade_disponivel: int
+    descricao: Optional[str] = None
+    status: Optional[str] = "ATIVO"
+
+    # Isso aqui é para a conversão de dados
+    class Config:
+        from_attributes = True
 
 # --- MODELO DE USUÁRIO (Com Roles e JWT) ---
 class UsuarioCreate(BaseModel):
@@ -64,9 +75,11 @@ class PedidoCreate(BaseModel):
 
 class HistoricoVendaResponse(BaseModel):
     id: str
+    pedido_id: str
     evento_id: str
     quantidade: int
     valor_unitario: float
+    valor_total: Optional[float] = 0.0  # O novo campo do Worker
     status: str
     data_processamento: datetime
 
