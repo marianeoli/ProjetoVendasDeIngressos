@@ -84,7 +84,20 @@
 
     <script>
         const API_URL = "http://localhost:8000/api/v1";
-
+        
+        window.onload = () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                const user = extrairDadosToken();
+                document.getElementById('nav-links').classList.remove('hidden');
+                if (user && user.role === 'admin') {
+                    document.getElementById('admin-link').classList.remove('hidden');
+                }
+                navegar('eventos');
+                carregarEventos();
+            }
+        };
+        
         // --- UTILS ---
         function extrairDadosToken() {
             const token = localStorage.getItem('token');

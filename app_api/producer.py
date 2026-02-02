@@ -3,7 +3,7 @@ import json
 
 # Configurações de conexão (Padrão do Docker: guest/guest)
 #rabbit_host = os.getenv("RABBITMQ_HOST", "localhost")
-RABBITMQ_URL = f"amqp://guest:guest@localhost:5672/"
+RABBITMQ_URL = f"amqp://guest:guest@rabbitmq:5672/"
 QUEUE_NAME = "fila_pedidos"
 
 async def publicar_mensagem(mensagem: dict):
