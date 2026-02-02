@@ -57,6 +57,8 @@ async def obter_historico(token_data: TokenData = Depends(obter_usuario_atual)):
     vendas_processadas = []
     for v in vendas_raw:
         v["id"] = str(v["_id"])
+        v["usuario_id"] = str(v.get("usuario_id"))
+        v["evento_id"] = str(v.get("evento_id"))
         
         # Tenta pegar o nome salvo pelo Worker. Se não tiver, busca no banco de eventos.
         nome_show = v.get("nome_evento")
@@ -84,6 +86,11 @@ async def consultar_status_pedido(pedido_id: str, usuario: TokenData = Depends(o
         raise HTTPException(status_code=404, detail="Aguardando Worker...")
         
     venda["id"] = str(venda["_id"])
+    venda["usuario_id"] = str(venda.get("usuario_id", ""))
+    venda["evento_id"] = str(venda.get("evento_id", ""))
+
+    del venda["_id"]
+
     return venda
 
 # --- 5. DASHBOARD ADMIN ---
