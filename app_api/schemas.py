@@ -79,7 +79,7 @@ class HistoricoVendaResponse(BaseModel):
     evento_id: str
     quantidade: int
     valor_unitario: float
-    valor_total: Optional[float] = 0.0  # O novo campo do Worker
+    valor_total: float  # O novo campo do Worker
     status: str
     data_processamento: datetime
 

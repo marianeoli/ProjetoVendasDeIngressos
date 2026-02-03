@@ -49,7 +49,7 @@ async def comprar_ingresso(pedido: PedidoCreate, usuario: TokenData = Depends(ob
         "nome_evento": evento.get("nome"), # Guardamos o nome para o histórico ser bonito
         "usuario_id": usuario.usuario_id,
         "quantidade": pedido.quantidade,
-        "valor_unitario": evento.get("preco", 0.0),
+        "valor_unitario": evento.get("preco") or evento.get("valor_total") or 0.0,
         "status": "PENDENTE"
     }
     await publicar_mensagem(mensagem)
@@ -59,8 +59,6 @@ async def comprar_ingresso(pedido: PedidoCreate, usuario: TokenData = Depends(ob
 @router.get("/vendas/historico", response_model=List[HistoricoVendaResponse])
 async def obter_historico(token_data: TokenData = Depends(obter_usuario_atual)):
     usuario_oid = ObjectId(token_data.usuario_id)
-    
-    # Busca vendas do usuário logado
     cursor = vendas_collection.find({"usuario_id": usuario_oid})
     vendas_raw = await cursor.to_list(length=100)
     
@@ -68,18 +66,21 @@ async def obter_historico(token_data: TokenData = Depends(obter_usuario_atual)):
     for v in vendas_raw:
         v["id"] = str(v["_id"])
         v["usuario_id"] = str(v.get("usuario_id"))
-        v["evento_id"] = str(v.get("evento_id"))
+        v["pedido_id"] = v.get("pedido_id") or v["id"]
         
-        # Tenta pegar o nome salvo pelo Worker. Se não tiver, busca no banco de eventos.
+        # Nome do Evento
         nome_show = v.get("nome_evento")
         if not nome_show:
-            ev_id = v.get("evento_id")
-            # Busca o evento para pegar o nome real
-            evento_doc = await eventos_collection.find_one({"_id": ObjectId(ev_id) if isinstance(ev_id, str) else ev_id})
-            nome_show = evento_doc.get("nome") if evento_doc else "Evento Removido"
+            evento_doc = await eventos_collection.find_one({"_id": v.get("evento_id")})
+            nome_show = evento_doc.get("nome") if evento_doc else "Evento"
         
-        v["evento_id"] = nome_show # O Front exibirá o Nome agora
-        v["valor_unitario"] = v.get("valor_unitario") or v.get("valor_total") or 0.0
+        v["evento_id"] = nome_show
+        
+        # --- CÁLCULO DO TOTAL ---
+        # Garante que valor_total exista para o Pydantic não dar erro
+        v["valor_unitario"] = v.get("valor_unitario") or 0.0
+        v["valor_total"] = v.get("valor_total") or (v.get("quantidade", 0) * v["valor_unitario"])
+        
         v["data_processamento"] = v.get("data_processamento") or v.get("data_hora") or datetime.now()
         vendas_processadas.append(v)
         
