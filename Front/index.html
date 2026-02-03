@@ -17,11 +17,15 @@
             <h1 class="text-2xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent cursor-pointer" onclick="navegar('eventos')">
                 BILHETERIA.IO
             </h1>
-            <div id="nav-links" class="hidden flex gap-6 text-sm font-bold items-center">
+
+            <div id="nav-links" class="flex gap-6 text-sm font-bold items-center">
                 <button onclick="navegar('eventos')" class="hover:text-purple-400 transition">EVENTOS</button>
-                <button onclick="navegar('perfil')" class="hover:text-purple-400 transition">MEU PERFIL</button>
-                <button id="admin-link" onclick="navegar('admin')" class="hidden text-pink-500 border border-pink-500/30 px-3 py-1 rounded-lg hover:bg-pink-500 transition">PAINEL ADMIN</button>
-                <button onclick="logout()" class="text-slate-500 hover:text-red-500">SAIR</button>
+                <button id="perfil-btn" class="hidden hover:text-purple-400 transition" onclick="navegar('perfil')">MEU PERFIL</button>
+                <button id="admin-link" class="hidden text-pink-500 border border-pink-500/30 px-3 py-1 rounded-lg hover:bg-pink-500 transition" onclick="navegar('admin')">PAINEL ADMIN</button>
+                
+                <button id="auth-btn" onclick="navegar('auth')" class="bg-purple-600 px-4 py-2 rounded-xl hover:bg-purple-700 transition">ENTRAR</button>
+                
+                <button id="logout-btn" class="hidden text-slate-500 hover:text-red-500 transition" onclick="logout()">SAIR</button>
             </div>
         </div>
     </nav>
@@ -86,15 +90,48 @@
         const API_URL = "http://localhost:8000/api/v1";
         
         window.onload = () => {
+            // 1. Independente de login, sempre busca os eventos da API
+            carregarEventos();
+
             const token = localStorage.getItem('token');
+            
+            // Pega as referências dos botões para facilitar
+            const perfilBtn = document.getElementById('perfil-btn');
+            const logoutBtn = document.getElementById('logout-btn');
+            const authBtn = document.getElementById('auth-btn');
+            const adminLink = document.getElementById('admin-link');
+            const navLinks = document.getElementById('nav-links');
+
+            // Sempre mostra o menu de navegação, o que muda são os botões dentro dele
+            navLinks.classList.remove('hidden');
+
             if (token) {
+                // --- USUÁRIO LOGADO ---
                 const user = extrairDadosToken();
-                document.getElementById('nav-links').classList.remove('hidden');
+
+                // Ajusta visibilidade dos botões
+                perfilBtn.classList.remove('hidden');
+                logoutBtn.classList.remove('hidden');
+                authBtn.classList.add('hidden'); // Esconde o "Entrar"
+
+                // Se for admin, mostra o link do painel
                 if (user && user.role === 'admin') {
-                    document.getElementById('admin-link').classList.remove('hidden');
+                    adminLink.classList.remove('hidden');
                 }
+
+                // Garante que a seção de login suma e mostre os eventos
+                document.getElementById('auth-section').classList.add('hidden');
+                document.getElementById('eventos-section').classList.remove('hidden');
+
+            } else {
+                // --- USUÁRIO VISITANTE (GUEST) ---
+                perfilBtn.classList.add('hidden');
+                logoutBtn.classList.add('hidden');
+                adminLink.classList.add('hidden');
+                authBtn.classList.remove('hidden'); // Mostra o "Entrar"
+
+                // Garante que ele comece na tela de eventos
                 navegar('eventos');
-                carregarEventos();
             }
         };
         
@@ -174,6 +211,11 @@
                     const dataExibicao = ev.data.includes('T') ? new Date(ev.data).toLocaleString('pt-BR') : ev.data;
                     const totalRestantes = ev.quantidade_disponivel || 0;
 
+                    let precoMinimo = ev.preco || 0;
+                        if (ev.tipos_ingresso && ev.tipos_ingresso.length > 0) {
+                            precoMinimo = Math.min(...ev.tipos_ingresso.map(t => t.preco));
+                        }
+
                     container.innerHTML += `
                         <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 hover:border-purple-500 transition-all group relative overflow-hidden">
                             ${estaPausado ? '<div class="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px] z-10 flex items-center justify-center"><span class="bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-xl shadow-red-500/20 border border-red-400/50">Vendas Suspensas</span></div>' : ''}
@@ -193,7 +235,7 @@
                             <div class="flex justify-between items-center pt-4 border-t border-slate-800/50">
                                 <div class="flex flex-col">
                                     <span class="text-[9px] text-slate-500 uppercase font-black tracking-widest">Valor Unitário</span>
-                                    <span class="text-2xl font-black text-white">R$ ${parseFloat(ev.preco || ev.valor_total || 0).toFixed(2)}</span>
+                                    <span class="text-2xl font-black text-white">R$ ${parseFloat(ev.preco || 0).toFixed(2)}</span>
                                 </div>
                                 <button onclick="${estaPausado ? "Swal.fire('Aviso', 'Este evento está pausado.', 'info')" : `comprar('${ev.id}')`}" 
                                         class="${estaPausado ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 text-white'} px-6 py-3 rounded-2xl font-bold transition-all transform active:scale-95 shadow-lg shadow-purple-500/20">
@@ -207,33 +249,93 @@
 
         async function comprar(eventoId) {
             const token = localStorage.getItem('token');
-            const user = extrairDadosToken();
-            const { value: qtd } = await Swal.fire({ 
-                title: 'Quantidade', 
-                input: 'number', 
-                inputValue: 1, 
-                inputAttributes: { min: 1 },
-                showCancelButton: true,
-                confirmButtonText: 'Reservar',
-                confirmButtonColor: '#9333ea'
-            });
-            if (!qtd) return;
-
-            Swal.fire({ title: 'Criando reserva...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-            try {
-                const res = await fetch(`${API_URL}/comprar`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ evento_id: eventoId, usuario_id: user.id, quantidade: parseInt(qtd) })
+                
+            // Se não tiver token, interrompe e pede login
+            if (!token) {
+                Swal.fire({
+                    title: 'Falta pouco!',
+                    text: 'Você precisa entrar na sua conta para reservar ingressos.',
+                    icon: 'info',
+                    showCancelButton: true,
+                    confirmButtonText: 'Fazer Login / Cadastro',
+                    cancelButtonText: 'Continuar olhando',
+                    confirmButtonColor: '#9333ea'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        navegar('auth'); // Leva o usuário para a tela de login
+                    }
                 });
-                const data = await res.json();
-                if (res.ok) {
-                    // Inicia o polling para esperar o Worker processar a reserva
-                    verificarStatusPedido(data.pedido_id);
-                } else { Swal.fire('Erro', data.detail, 'error'); }
-            } catch (err) { Swal.fire('Erro', 'Sem conexão', 'error'); }
-        }
+                return;
+            }
+            const resEv = await fetch(`${API_URL}/eventos`);
+            const eventos = await resEv.json();
+            const evento = eventos.find(e => e.id === eventoId);
+
+            let optionsHtml = '';
+                if (evento.tipos_ingresso && evento.tipos_ingresso.length > 0) {
+                    optionsHtml = evento.tipos_ingresso.map(t => 
+                        `<option value="${t.nome}">${t.nome} - R$ ${t.preco.toFixed(2)} (${t.quantidade_disponivel} disp.)</option>`
+                    ).join('');
+                } else {
+                    optionsHtml = `<option value="Pista">Pista - R$ ${evento.preco.toFixed(2)}</option>`;
+                }
+
+            const { value: formValues } = await Swal.fire({
+                    title: 'Configurar Ingresso',
+                    background: '#0f172a',
+                    color: '#f1f5f9',
+                    html: `
+                        <div class="text-left space-y-4">
+                            <div>
+                                <label class="text-[10px] uppercase font-bold text-slate-500">Setor</label>
+                                <select id="swal-categoria" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 outline-none focus:border-purple-500">${optionsHtml}</select>
+                            </div>
+                            <div>
+                                <label class="text-[10px] uppercase font-bold text-slate-500">Tipo</label>
+                                <select id="swal-tipo" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 outline-none focus:border-purple-500">
+                                    <option value="inteira">Inteira</option>
+                                    <option value="meia">Meia-Entrada</option>
+                                    <option value="idoso">Idoso (60+)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[10px] uppercase font-bold text-slate-500">Quantidade</label>
+                                <input id="swal-qtd" type="number" value="1" min="1" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 outline-none focus:border-purple-500">
+                            </div>
+                        </div>`,
+                    focusConfirm: false,
+                    preConfirm: () => {
+                        return {
+                            categoria: document.getElementById('swal-categoria').value,
+                            tipo_ingresso: document.getElementById('swal-tipo').value,
+                            quantidade: document.getElementById('swal-qtd').value
+                        }
+                    }
+                });
+
+                if (!formValues) return;
+
+                // 4. Enviar para a API
+                const user = extrairDadosToken();
+                try {
+                    const res = await fetch(`${API_URL}/comprar`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({
+                            evento_id: eventoId,
+                            usuario_id: user.id,
+                            quantidade: parseInt(formValues.quantidade),
+                            categoria: formValues.categoria,
+                            tipo_ingresso: formValues.tipo_ingresso
+                        })
+                    });
+                    
+                    if (res.ok) {
+                        const data = await res.json();
+                        verificarStatusPedido(data.pedido_id);
+                    }
+                } catch (err) { Swal.fire('Erro', 'Falha na conexão', 'error'); }
+            }
 
         function verificarStatusPedido(pedidoId) {
             const token = localStorage.getItem('token');
@@ -242,32 +344,41 @@
             let interval = setInterval(async () => {
                 tentativas++;
                 try {
-                    const res = await fetch(`${API_URL}/vendas/${pedidoId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                    const res = await fetch(`${API_URL}/vendas/${pedidoId}`, { 
+                        headers: { 'Authorization': `Bearer ${token}` } 
+                    });
+                    
                     if (res.ok) {
                         const venda = await res.json();
+                        
+                        // CASO SUCESSO
                         if (venda.status === "RESERVADO") {
                             clearInterval(interval);
-                            // Pergunta se quer pagar imediatamente após a reserva do Worker
                             const { isConfirmed } = await Swal.fire({
                                 title: 'Lugar Reservado!',
-                                text: 'Sua vaga está garantida por 10 minutos. Deseja finalizar o pagamento?',
+                                text: 'Sua vaga está garantida. Deseja pagar agora?',
                                 icon: 'success',
                                 showCancelButton: true,
                                 confirmButtonText: 'Pagar Agora',
-                                cancelButtonText: 'Pagar Depois',
                                 confirmButtonColor: '#9333ea'
                             });
                             if (isConfirmed) finalizarPagamento(pedidoId);
                             else navegar('perfil');
+                        } 
+                        // CASO ERRO (Importante para parar o loop)
+                        else if (venda.status.includes("ERRO")) {
+                            clearInterval(interval);
+                            Swal.fire('Erro na Reserva', `Não foi possível completar: ${venda.status}`, 'error');
                         }
-                    } else if (tentativas > 15) {
+                    } 
+                    
+                    if (tentativas > 20) {
                         clearInterval(interval);
-                        Swal.fire('Aviso', 'Sua reserva está sendo processada. Verifique seu perfil.', 'info');
+                        Swal.fire('Aviso', 'O processamento está demorando. Confira seu perfil em instantes.', 'info');
                     }
-                } catch (e) { console.log("Aguardando reserva..."); }
+                } catch (e) { console.log("Aguardando worker..."); }
             }, 2000);
         }
-
         // --- PAGAMENTO REALISTA ---
         async function finalizarPagamento(pedidoId) {
             if (!pedidoId || pedidoId === 'undefined') return Swal.fire('Erro', 'Identificador inválido', 'error');
@@ -348,9 +459,6 @@
 
         async function processarConfirmacaoFinal(pedidoId) {
             Swal.fire({ title: 'Processando com a operadora...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            
-            // Simulação de latência de rede distribuída (2 segundos)
-            await new Promise(r => setTimeout(r, 2000));
 
             try {
                 const token = localStorage.getItem('token');

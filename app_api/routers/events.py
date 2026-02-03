@@ -15,7 +15,7 @@ async def listar_eventos():
     eventos = []
     async for evento in eventos_collection.find():
         evento["id"] = str(evento["_id"])
-        evento["preco"] = evento.get("valor_total") or evento.get("preco") or 0.0
+        evento["preco"] = evento.get("preco") or 0.0
         evento["status"] = evento.get("status", "ATIVO") # Garante que o status vá para o Front
         eventos.append(evento)
     return eventos
@@ -32,24 +32,28 @@ async def criar_evento(evento: EventoCreate):
 async def comprar_ingresso(pedido: PedidoCreate, usuario: TokenData = Depends(obter_usuario_atual)):
     evento = await eventos_collection.find_one({"_id": ObjectId(pedido.evento_id)})
 
-    # VERIFICAÇÃO DE STATUS
+    if not evento:
+        raise HTTPException(status_code=404, detail="Evento não encontrado")
+
     if evento.get("status") == "PAUSADO":
         raise HTTPException(status_code=400, detail="Vendas suspensas para este evento.")
 
     if evento.get("quantidade_disponivel") <= 0:
         raise HTTPException(status_code=400, detail="Ingressos esgotados!")
 
-    if not evento:
-        raise HTTPException(status_code=404, detail="Evento não encontrado")
-
     novo_pedido_id = str(ObjectId()) 
+    
+    # As variáveis 'setor' e 'tipo' precisam vir do seu PedidoCreate no schemas.py
+    # Se ainda não existem lá, você deve adicioná-las.
     mensagem = {
         "pedido_id": novo_pedido_id,
         "evento_id": pedido.evento_id,
-        "nome_evento": evento.get("nome"), # Guardamos o nome para o histórico ser bonito
+        "nome_evento": evento.get("nome"),
         "usuario_id": usuario.usuario_id,
         "quantidade": pedido.quantidade,
-        "valor_unitario": evento.get("preco") or evento.get("valor_total") or 0.0,
+        "valor_unitario": evento.get("preco") or 0.0,
+        "categoria": getattr(pedido, 'categoria', 'Pista'), # Fallback se não enviado
+        "tipo_ingresso": getattr(pedido, 'tipo_ingresso', 'Inteira'),
         "status": "PENDENTE"
     }
     await publicar_mensagem(mensagem)
@@ -89,7 +93,7 @@ async def obter_historico(token_data: TokenData = Depends(obter_usuario_atual)):
 # --- 4. CONSULTA DE STATUS ---
 @router.get("/vendas/{pedido_id}")
 async def consultar_status_pedido(pedido_id: str, usuario: TokenData = Depends(obter_usuario_atual)):
-    # Busca pelo pedido_id (string) que geramos na rota /comprar
+    # Busca pelo pedido_id (string) gerado na rota /comprar
     venda = await vendas_collection.find_one({"pedido_id": pedido_id})
     
     if not venda:
@@ -151,14 +155,12 @@ async def alterar_status_evento(
         
     return {"status": "sucesso", "novo_status": status}
 
-# app_api/routers/events.py
-
 @router.post("/vendas/{pedido_id}/confirmar")
 async def confirmar_pagamento(pedido_id: str, usuario: TokenData = Depends(obter_usuario_atual)):
-    # 1. Transformamos o ID do usuário logado em ObjectId (pois é como o Worker salvou)
+    # 1. Transforma o ID do usuário logado em ObjectId (pois é como o Worker salvou)
     usuario_oid = ObjectId(usuario.usuario_id)
 
-    # 2. Fazemos o update incluindo a SHARD KEY (usuario_id) no filtro
+    # 2. Faz o update incluindo a SHARD KEY (usuario_id) no filtro
     # Isso permite que o mongos direcione a requisição para o shard correto
     resultado = await vendas_collection.update_one(
         {

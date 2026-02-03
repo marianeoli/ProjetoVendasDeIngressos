@@ -3,11 +3,17 @@ from typing import Optional, List
 from datetime import datetime, date
 
 # --- MODELO DE EVENTO ---
+class CategoriaIngresso(BaseModel):
+    nome: str        # Ex: "Pista", "Camarote"
+    preco: float     # Ex: 200.0
+    disponivel: int
+
 class EventoCreate(BaseModel):
     nome: str
     data: str
     local: str
-    valor_total: float
+    categorias: List[CategoriaIngresso]
+    preco: float
     quantidade_total: int
     quantidade_disponivel: int
     descricao: Optional[str] = None
@@ -18,7 +24,7 @@ class EventoResponse(EventoCreate):
     nome: str
     data: str
     local: str
-    valor_total: float
+    preco: float
     quantidade_disponivel: int
     descricao: Optional[str] = None
     status: Optional[str] = "ATIVO"
@@ -52,7 +58,7 @@ class UsuarioLogin(BaseModel):
     email: EmailStr
     senha: str
 
-# Esquema para o Token JWT que devolveremos no login
+# Esquema para o Token JWT que devolve no login
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -66,7 +72,9 @@ class PedidoCreate(BaseModel):
     evento_id: str
     usuario_id: str
     quantidade: int
-    # Tornamos os campos abaixo opcionais para o usuário não precisar enviá-los no POST
+    categoria: str        # "Pista" ou "Camarote"
+    tipo_ingresso: str    # "inteira", "meia", "idoso"
+    # Torna os campos abaixo opcionais para o usuário não precisar enviá-los no POST
     # O Worker e a API cuidarão desses valores internamente
     data_nascimento: Optional[date] = None
     data_hora: Optional[datetime] = None

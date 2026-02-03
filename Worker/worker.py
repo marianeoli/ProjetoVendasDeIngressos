@@ -6,7 +6,6 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from datetime import datetime, timezone
 
-# Use variáveis de ambiente (boa prática do Docker)
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://mongos:27017")
 RABBIT_URL = os.getenv("RABBIT_URL", "amqp://guest:guest@rabbitmq:5672/")
 
@@ -16,7 +15,7 @@ async def processar_vendas(message, db):
     
     try:
         # --- 1. FILTRO DE IDEMPOTÊNCIA ---
-        # Verificamos se o pedido já existe na coleção de vendas
+        # Verifica se o pedido já existe na coleção de vendas
         pedido_ja_existe = await db.vendas.find_one({"pedido_id": pedido_id})
         
         if pedido_ja_existe:
@@ -40,8 +39,18 @@ async def processar_vendas(message, db):
 
         # --- 4. TENTATIVA ATÓMICA DE ESTOQUE ---
         resultado_estoque = await db.eventos.update_one(
-            {"_id": evento_oid, "quantidade_disponivel": {"$gte": quantidade}},
-            {"$inc": {"quantidade_disponivel": -quantidade}}
+            {
+                "_id": evento_oid, 
+                "quantidade_disponivel": {"$gte": quantidade},
+                "categorias.nome": payload.get("categoria", "Pista"), 
+                "categorias.disponivel": {"$gte": quantidade}
+            },
+            {
+                "$inc": {
+                    "quantidade_disponivel": -quantidade,
+                    "categorias.$.disponivel": -quantidade
+                }
+            }
         )
         
         quantidade = payload.get("quantidade", 1)
@@ -53,6 +62,8 @@ async def processar_vendas(message, db):
             "pedido_id": pedido_id,
             "evento_id": evento_oid,  # ObjectId
             "usuario_id": usuario_oid, # ObjectId (Importante para o Sharding na AWS!)
+            "categoria": payload["categoria"],
+            "tipo": payload["tipo_ingresso"],
             "quantidade": quantidade,
             "valor_total": valor_total,
             "data_hora": datetime.now(timezone.utc),      # Alinhado com Schema
