@@ -13,6 +13,8 @@ services:
   app_api:
     build: .                      
     container_name: api_vendas
+    extra_hosts:
+      - "mongos:98.92.68.72"
     ports:
       - "8000:8000"               
     depends_on:
@@ -28,6 +30,8 @@ services:
     build: ./Worker
     container_name: worker
     command: python ./Worker/worker.py
+    extra_hosts:
+      - "mongos:98.92.68.72"
     depends_on:
       - rabbitmq
     environment:

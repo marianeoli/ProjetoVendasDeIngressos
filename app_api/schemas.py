@@ -17,7 +17,15 @@ class EventoCreate(BaseModel):
     quantidade_total: int
     quantidade_disponivel: int
     descricao: Optional[str] = None
-    status: Optional[str] = "EM ESPERA"  # Valor padrão
+    status: Optional[str] = "ATIVO" # Valor padrão
+
+class EventoUpdate(BaseModel):
+    nome: Optional[str] = None
+    data: Optional[str] = None
+    local: Optional[str] = None
+    preco: Optional[float] = None
+    descricao: Optional[str] = None
+    categorias: Optional[List[CategoriaIngresso]] = None
 
 class EventoResponse(EventoCreate):
     id: str
