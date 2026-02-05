@@ -93,6 +93,8 @@
 
     <script>
         const API_URL = "http://localhost:8000/api/v1";
+        // Variável global para gerenciar as categorias no modal de criação
+        let categoriasTemp = []; 
         
         window.onload = () => {
             carregarEventos();
@@ -250,15 +252,12 @@
             const eventos = await resEv.json();
             const evento = eventos.find(e => e.id === eventoId);
 
-            // --- CORREÇÃO AQUI ---
-            // Agora verificamos 'categorias' em vez de 'tipos_ingresso'
             let optionsHtml = '';
             if (evento.categorias && evento.categorias.length > 0) {
                 optionsHtml = evento.categorias.map(t => 
                     `<option value="${t.nome}">${t.nome} - R$ ${t.preco.toFixed(2)} (${t.disponivel} disp.)</option>`
                 ).join('');
             } else {
-                // Fallback apenas se não houver categorias (eventos muito antigos)
                 optionsHtml = `<option value="Pista">Pista - R$ ${evento.preco.toFixed(2)}</option>`;
             }
 
@@ -517,82 +516,81 @@
             } catch (e) { Swal.fire('Erro', 'Falha na comunicação', 'error'); }
         }
 
-        // --- FUNÇÕES DE CRUD (NOVO) ---
-        // Função Inteligente: Serve para CRIAR e EDITAR
+        // --- FUNÇÕES DE CRUD (MULTICATEGORIA) ---
         async function abrirModalEvento(id = null) {
-            // Valores padrão
-            let evento = { 
-                nome: '', 
-                data: '', 
-                local: '', 
-                preco: 0, 
-                quantidade_total: 100, 
-                descricao: '',
-                // Tenta pegar o nome da primeira categoria se existir, senão usa vazio
-                categoria_padrao: '' 
-            };
-            
+            // 1. Reset
+            categoriasTemp = [];
+            let evento = { nome: '', data: '', local: '', descricao: '' };
             let titulo = 'Novo Evento';
             let metodo = 'POST';
             let url = `${API_URL}/eventos`;
 
-            // Se tiver ID, buscamos os dados atuais (Modo Edição)
+            // 2. Se for EDIÇÃO, busca os dados
             if (id) {
                 titulo = 'Editar Evento';
                 metodo = 'PUT';
                 url = `${API_URL}/eventos/${id}`;
-                
                 try {
                     const res = await fetch(`${API_URL}/eventos`);
                     const lista = await res.json();
                     const encontrado = lista.find(e => e.id === id);
                     if (encontrado) {
                         evento = encontrado;
-                        // Se já existir categoria, pega o nome da primeira para exibir
                         if (encontrado.categorias && encontrado.categorias.length > 0) {
-                            evento.categoria_padrao = encontrado.categorias[0].nome;
+                            categoriasTemp = [...encontrado.categorias];
                         }
                     }
                 } catch(e) { console.error(e); }
+            } else {
+                // NOVO: Adiciona Pista como padrão
+                categoriasTemp.push({ nome: 'Pista', preco: 0, disponivel: 100 });
             }
 
+            // 3. Renderiza Modal
             const { value: formValues } = await Swal.fire({
                 title: titulo,
                 background: '#0f172a',
                 color: '#f1f5f9',
-                width: '600px', // Aumentei um pouco a largura
+                width: '700px',
                 html: `
-                    <div class="space-y-4 text-left">
-                        <div>
+                    <div class="space-y-4 text-left text-sm">
+                        <div class="grid grid-cols-1 gap-3">
                             <label class="text-[10px] uppercase font-bold text-slate-500">Dados do Show</label>
-                            <input id="swal-nome" placeholder="Nome do Evento" value="${evento.nome}" class="w-full p-3 mt-1 rounded-xl bg-slate-950 border border-slate-800 outline-none focus:border-pink-500">
+                            <input id="swal-nome" placeholder="Nome do Evento" value="${evento.nome}" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 outline-none focus:border-pink-500">
                         </div>
-
                         <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="text-[10px] uppercase font-bold text-slate-500">Data e Hora</label>
-                                <input id="swal-data" type="datetime-local" value="${evento.data}" class="w-full p-3 mt-1 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-400">
-                            </div>
-                            <div>
-                                <label class="text-[10px] uppercase font-bold text-slate-500">Localização</label>
-                                <input id="swal-local" placeholder="Local" value="${evento.local}" class="w-full p-3 mt-1 rounded-xl bg-slate-950 border border-slate-800 outline-none">
-                            </div>
+                            <input id="swal-data" type="datetime-local" value="${evento.data}" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-400">
+                            <input id="swal-local" placeholder="Local" value="${evento.local}" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 outline-none">
                         </div>
 
-                        <div class="p-4 bg-slate-900/50 rounded-xl border border-slate-800 border-dashed">
-                            <label class="text-[10px] uppercase font-bold text-pink-500 mb-2 block">Configuração do Ingresso</label>
-                            <div class="grid grid-cols-1 gap-3 mb-3">
-                                <input id="swal-cat-nome" placeholder="Nome do Setor (Ex: Pista, Geral, VIP)" value="${evento.categoria_padrao || 'Pista'}" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 outline-none focus:border-pink-500">
+                        <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800 border-dashed">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-[10px] uppercase font-bold text-pink-500">Setores / Ingressos</label>
+                                <span class="text-[9px] text-slate-500">Adicione as categorias abaixo</span>
                             </div>
-                            <div class="grid grid-cols-2 gap-3">
-                                <input id="swal-preco" type="number" placeholder="Preço (R$)" value="${evento.preco}" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 outline-none">
-                                <input id="swal-qtd" type="number" placeholder="Quantidade Total" value="${evento.quantidade_total}" ${id ? 'disabled' : ''} class="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 outline-none disabled:opacity-50">
+
+                            <div class="grid grid-cols-3 gap-2 mb-3">
+                                <input id="cat-nome" placeholder="Nome (Ex: VIP)" class="col-span-1 p-2 rounded-lg bg-slate-950 border border-slate-700 text-xs">
+                                <div class="flex gap-2 col-span-2">
+                                    <input id="cat-preco" type="number" placeholder="R$" class="w-1/3 p-2 rounded-lg bg-slate-950 border border-slate-700 text-xs">
+                                    <input id="cat-qtd" type="number" placeholder="Qtd" class="w-1/3 p-2 rounded-lg bg-slate-950 border border-slate-700 text-xs">
+                                    <button type="button" onclick="adicionarCategoriaDOM()" class="w-1/3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-xs">+</button>
+                                </div>
+                            </div>
+
+                            <div class="overflow-hidden rounded-lg border border-slate-800">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-950 text-slate-500">
+                                        <tr><th class="p-2">Nome</th><th class="p-2">Preço</th><th class="p-2">Qtd</th><th class="p-2 text-center">Ação</th></tr>
+                                    </thead>
+                                    <tbody id="lista-categorias-body" class="divide-y divide-slate-800 bg-slate-900"></tbody>
+                                </table>
                             </div>
                         </div>
 
                         <div>
                             <label class="text-[10px] uppercase font-bold text-slate-500">Detalhes</label>
-                            <textarea id="swal-desc" placeholder="Descrição do evento..." class="w-full p-3 mt-1 rounded-xl bg-slate-950 border border-slate-800 outline-none h-20">${evento.descricao || ''}</textarea>
+                            <textarea id="swal-desc" placeholder="Descrição..." class="w-full p-3 mt-1 rounded-xl bg-slate-950 border border-slate-800 outline-none h-20">${evento.descricao || ''}</textarea>
                         </div>
                     </div>
                 `,
@@ -600,55 +598,35 @@
                 confirmButtonColor: '#db2777',
                 showCancelButton: true,
                 cancelButtonText: 'Cancelar',
+                
+                didOpen: () => { renderizarTabelaCategorias(); },
+
                 preConfirm: () => {
-                    // Validação simples
-                    const nomeCat = document.getElementById('swal-cat-nome').value;
-                    if (!nomeCat) {
-                        Swal.showValidationMessage('Defina um nome para o setor do ingresso');
-                        return false;
-                    }
+                    const nome = document.getElementById('swal-nome').value;
+                    const data = document.getElementById('swal-data').value;
+                    
+                    if (!nome || !data) return Swal.showValidationMessage('Preencha nome e data!');
+                    if (categoriasTemp.length === 0) return Swal.showValidationMessage('Adicione pelo menos uma categoria!');
+
+                    const precoBase = Math.min(...categoriasTemp.map(c => c.preco));
+                    const totalQtd = categoriasTemp.reduce((sum, c) => sum + c.disponivel, 0);
 
                     return {
-                        nome: document.getElementById('swal-nome').value,
-                        data: document.getElementById('swal-data').value,
+                        nome: nome,
+                        data: data,
                         local: document.getElementById('swal-local').value,
-                        preco: parseFloat(document.getElementById('swal-preco').value),
-                        quantidade_total: parseInt(document.getElementById('swal-qtd').value),
-                        quantidade_disponivel: parseInt(document.getElementById('swal-qtd').value), // Inicializa estoque
                         descricao: document.getElementById('swal-desc').value,
-                        status: "ATIVO", // Garante que nasce ativo
-                        
-                        // CRIA A CATEGORIA DINÂMICA
-                        // Se for edição (id existe), não mandamos categorias para não sobrescrever a lógica complexa
-                        // Se for criação, criamos a lista com o nome que o usuário digitou
-                        categorias: id ? undefined : [
-                            { 
-                                nome: nomeCat, 
-                                preco: parseFloat(document.getElementById('swal-preco').value), 
-                                disponivel: parseInt(document.getElementById('swal-qtd').value) 
-                            }
-                        ]
+                        preco: precoBase,
+                        quantidade_total: totalQtd,
+                        quantidade_disponivel: totalQtd,
+                        categorias: categoriasTemp,
+                        status: "ATIVO"
                     }
                 }
             });
 
             if (formValues) {
-                const token = localStorage.getItem('token');
-                try {
-                    const res = await fetch(url, {
-                        method: metodo,
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify(formValues)
-                    });
-
-                    if (res.ok) {
-                        Swal.fire('Sucesso', 'Evento salvo com sucesso!', 'success');
-                        carregarDashboardAdmin(); 
-                        carregarEventos(); 
-                    } else {
-                        Swal.fire('Erro', 'Verifique os dados preenchidos.', 'error');
-                    }
-                } catch (e) { Swal.fire('Erro', 'Falha na conexão', 'error'); }
+                enviarEventoAPI(url, metodo, formValues);
             }
         }
 
@@ -680,6 +658,71 @@
                     }
                 } catch (e) { Swal.fire('Erro', 'API Offline', 'error'); }
             }
+        }
+
+        // --- AUXILIARES DO MODAL ---
+        function renderizarTabelaCategorias() {
+            const tbody = document.getElementById('lista-categorias-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            
+            categoriasTemp.forEach((cat, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-2 text-white font-medium">${cat.nome}</td>
+                    <td class="p-2 text-green-400">R$ ${parseFloat(cat.preco).toFixed(2)}</td>
+                    <td class="p-2 text-slate-300">${cat.disponivel}</td>
+                    <td class="p-2 text-center">
+                        <button type="button" onclick="removerCategoriaDOM(${index})" class="text-red-500 hover:text-red-400 font-bold px-2">🗑️</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function adicionarCategoriaDOM() {
+            const nomeEl = document.getElementById('cat-nome');
+            const precoEl = document.getElementById('cat-preco');
+            const qtdEl = document.getElementById('cat-qtd');
+
+            const nome = nomeEl.value.trim();
+            const preco = parseFloat(precoEl.value);
+            const qtd = parseInt(qtdEl.value);
+
+            if (!nome || isNaN(preco) || isNaN(qtd)) {
+                const input = !nome ? nomeEl : (isNaN(preco) ? precoEl : qtdEl);
+                input.classList.add('border-red-500');
+                setTimeout(() => input.classList.remove('border-red-500'), 1000);
+                return;
+            }
+
+            categoriasTemp.push({ nome, preco, disponivel: qtd });
+            nomeEl.value = ''; precoEl.value = ''; qtdEl.value = '';
+            nomeEl.focus();
+            renderizarTabelaCategorias();
+        }
+
+        function removerCategoriaDOM(index) {
+            categoriasTemp.splice(index, 1);
+            renderizarTabelaCategorias();
+        }
+
+        async function enviarEventoAPI(url, metodo, dados) {
+            const token = localStorage.getItem('token');
+            try {
+                const res = await fetch(url, {
+                    method: metodo,
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(dados)
+                });
+                if (res.ok) {
+                    Swal.fire('Sucesso', 'Evento salvo!', 'success');
+                    carregarDashboardAdmin(); 
+                    carregarEventos(); 
+                } else {
+                    Swal.fire('Erro', 'Verifique os dados.', 'error');
+                }
+            } catch (e) { Swal.fire('Erro', 'Falha na conexão', 'error'); }
         }
 
         function logout() { localStorage.clear(); location.reload(); }
