@@ -252,6 +252,7 @@
             const eventos = await resEv.json();
             const evento = eventos.find(e => e.id === eventoId);
 
+            // Monta o select de categorias
             let optionsHtml = '';
             if (evento.categorias && evento.categorias.length > 0) {
                 optionsHtml = evento.categorias.map(t => 
@@ -309,11 +310,20 @@
                         tipo_ingresso: formValues.tipo_ingresso
                     })
                 });
+                
+                // --- CORREÇÃO AQUI: TRATAMENTO DE ERRO DETALHADO ---
+                const data = await res.json();
+                
                 if (res.ok) {
-                    const data = await res.json();
                     verificarStatusPedido(data.pedido_id);
+                } else {
+                    // Agora lemos o 'detail' que vem do Python (Ex: "Não há ingressos...")
+                    Swal.fire('Atenção', data.detail || 'Erro ao processar compra.', 'warning');
                 }
-            } catch (err) { Swal.fire('Erro', 'Falha na conexão', 'error'); }
+            } catch (err) { 
+                console.error(err);
+                Swal.fire('Erro', 'Falha na conexão com o servidor.', 'error'); 
+            }
         }
 
         function verificarStatusPedido(pedidoId) {
@@ -672,12 +682,33 @@
                     <td class="p-2 text-white font-medium">${cat.nome}</td>
                     <td class="p-2 text-green-400">R$ ${parseFloat(cat.preco).toFixed(2)}</td>
                     <td class="p-2 text-slate-300">${cat.disponivel}</td>
-                    <td class="p-2 text-center">
-                        <button type="button" onclick="removerCategoriaDOM(${index})" class="text-red-500 hover:text-red-400 font-bold px-2">🗑️</button>
+                    <td class="p-2 text-center flex justify-center gap-3">
+                        <button type="button" onclick="editarCategoriaDOM(${index})" class="text-blue-400 hover:text-blue-300 transition transform hover:scale-110" title="Editar">✏️</button>
+                        <button type="button" onclick="removerCategoriaDOM(${index})" class="text-red-500 hover:text-red-400 transition transform hover:scale-110" title="Remover">🗑️</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
+        }
+
+        function editarCategoriaDOM(index) {
+            const cat = categoriasTemp[index];
+
+            // 1. Joga os dados da linha de volta para os inputs
+            document.getElementById('cat-nome').value = cat.nome;
+            document.getElementById('cat-preco').value = cat.preco;
+            document.getElementById('cat-qtd').value = cat.disponivel;
+
+            // 2. Remove da lista temporária (o usuário vai readicionar corrigido)
+            removerCategoriaDOM(index);
+
+            // 3. Foca no campo de nome para agilizar a edição
+            document.getElementById('cat-nome').focus();
+            
+            // Opcional: Feedback visual rápido
+            const inputArea = document.getElementById('cat-nome').parentElement.parentElement;
+            inputArea.classList.add('bg-blue-500/10', 'transition', 'duration-500');
+            setTimeout(() => inputArea.classList.remove('bg-blue-500/10'), 500);
         }
 
         function adicionarCategoriaDOM() {

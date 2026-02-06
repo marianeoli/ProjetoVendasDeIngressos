@@ -25,6 +25,8 @@ class EventoUpdate(BaseModel):
     local: Optional[str] = None
     preco: Optional[float] = None
     descricao: Optional[str] = None
+    quantidade_total: Optional[int] = None
+    quantidade_disponivel: Optional[int] = None 
     categorias: Optional[List[CategoriaIngresso]] = None
 
 class EventoResponse(EventoCreate):
