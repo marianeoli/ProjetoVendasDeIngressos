@@ -262,10 +262,15 @@
                 optionsHtml = `<option value="Pista">Pista - R$ ${evento.preco.toFixed(2)}</option>`;
             }
 
-            const { value: formValues } = await Swal.fire({
+            const { value: formValues, isDismissed } = await Swal.fire({
                 title: 'Configurar Ingresso',
                 background: '#0f172a',
                 color: '#f1f5f9',
+                showCancelButton: true, // Habilita o botão cancelar
+                cancelButtonText: 'Cancelar',
+                cancelButtonColor: '#334155',
+                confirmButtonText: 'Reservar Agora',
+                confirmButtonColor: '#9333ea',
                 html: `
                     <div class="text-left space-y-4">
                         <div>
@@ -295,10 +300,13 @@
                 }
             });
 
+            if (isDismissed || !formValues) return;
+
             if (!formValues) return;
 
             const user = extrairDadosToken();
             try {
+                Swal.fire({ title: 'Reservando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                 const res = await fetch(`${API_URL}/comprar`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

@@ -14,7 +14,7 @@ services:
     build: .                      
     container_name: api_vendas
     extra_hosts:
-      - "mongos:3.210.184.232"
+      - "mongos:54.226.9.139"
     ports:
       - "8000:8000"               
     depends_on:
@@ -31,7 +31,7 @@ services:
     container_name: worker
     command: python ./Worker/worker.py
     extra_hosts:
-      - "mongos:3.210.184.232"
+      - "mongos:54.226.9.139"
     depends_on:
       - rabbitmq
     environment:
@@ -40,3 +40,4 @@ services:
       - SECRET_KEY=6dfbyg7HoXlu6McL1cqVBl1DYlVWfKhOQ7DlRR1WAI8
     volumes:
       - .:/app
+
